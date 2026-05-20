@@ -1,35 +1,43 @@
 body.post-type-download_document,
 body.taxonomy-download_category,
+body.taxonomy-download_range,
 body.taxonomy-download_language,
 .post-type-download_document #wpwrap,
 .taxonomy-download_category #wpwrap,
+.taxonomy-download_range #wpwrap,
 .taxonomy-download_language #wpwrap,
 .post-type-download_document #wpbody,
 .taxonomy-download_category #wpbody,
+.taxonomy-download_range #wpbody,
 .taxonomy-download_language #wpbody,
 .post-type-download_document #wpbody-content,
 .taxonomy-download_category #wpbody-content,
+.taxonomy-download_range #wpbody-content,
 .taxonomy-download_language #wpbody-content,
 .post-type-download_document #wpcontent,
 .taxonomy-download_category #wpcontent,
+.taxonomy-download_range #wpcontent,
 .taxonomy-download_language #wpcontent {
 	background: #f6f7fb;
 }
 
 .post-type-download_document #wpbody-content,
 .taxonomy-download_category #wpbody-content,
+.taxonomy-download_range #wpbody-content,
 .taxonomy-download_language #wpbody-content {
 	min-height: calc(100vh - 32px);
 }
 
 .post-type-download_document .wrap,
 .taxonomy-download_category .wrap,
+.taxonomy-download_range .wrap,
 .taxonomy-download_language .wrap {
 	max-width: 1320px;
 }
 
 .post-type-download_document.edit-php .wrap,
 .taxonomy-download_category.edit-tags-php .wrap,
+.taxonomy-download_range.edit-tags-php .wrap,
 .taxonomy-download_language.edit-tags-php .wrap {
 	max-width: none;
 }
@@ -41,6 +49,7 @@ body.taxonomy-download_language,
 
 .post-type-download_document .wrap h1.wp-heading-inline,
 .taxonomy-download_category .wrap h1.wp-heading-inline,
+.taxonomy-download_range .wrap h1.wp-heading-inline,
 .taxonomy-download_language .wrap h1.wp-heading-inline {
 	color: #172033;
 	font-weight: 700;
@@ -137,15 +146,19 @@ body.taxonomy-download_language,
 }
 
 .post-type-download_document .column-ctd_pdf {
-	width: 30%;
+	width: 24%;
 }
 
 .post-type-download_document .column-ctd_categories {
-	width: 18%;
+	width: 13%;
+}
+
+.post-type-download_document .column-ctd_ranges {
+	width: 13%;
 }
 
 .post-type-download_document .column-ctd_languages {
-	width: 16%;
+	width: 12%;
 }
 
 .post-type-download_document .column-ctd_status {
@@ -275,12 +288,57 @@ body.taxonomy-download_language,
 	width: 170px;
 }
 
-.ctd-language-flag-select {
-	min-width: 220px;
-}
-
 .ctd-language-preview {
 	margin-top: 10px;
+}
+
+.ctd-language-media-control {
+	display: grid;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+.ctd-language-media-preview {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	display: flex;
+	gap: 10px;
+	min-height: 42px;
+	padding: 8px 10px;
+}
+
+.ctd-language-media-preview img,
+.ctd-language-media-preview .dashicons {
+	border-radius: 999px;
+	flex: 0 0 auto;
+	height: 26px;
+	object-fit: cover;
+	width: 26px;
+}
+
+.ctd-language-media-preview .dashicons {
+	align-items: center;
+	background: #f1f5f9;
+	color: #64748b;
+	display: inline-flex;
+	font-size: 18px;
+	justify-content: center;
+}
+
+.ctd-language-media-preview span:last-child {
+	color: #475569;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ctd-language-media-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .ctd-empty-value {
@@ -424,14 +482,17 @@ body.taxonomy-download_language,
 
 @media screen and (min-width: 783px) {
 	.taxonomy-download_category #col-container,
+	.taxonomy-download_range #col-container,
 	.taxonomy-download_language #col-container {
 		display: grid;
 		gap: 20px;
-		grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+		grid-template-columns: minmax(350px, 430px) minmax(0, 1fr);
 	}
 
 	.taxonomy-download_category #col-left,
 	.taxonomy-download_category #col-right,
+	.taxonomy-download_range #col-left,
+	.taxonomy-download_range #col-right,
 	.taxonomy-download_language #col-left,
 	.taxonomy-download_language #col-right {
 		float: none;
@@ -442,12 +503,15 @@ body.taxonomy-download_language,
 
 	.taxonomy-download_category #col-left .col-wrap,
 	.taxonomy-download_category #col-right .col-wrap,
+	.taxonomy-download_range #col-left .col-wrap,
+	.taxonomy-download_range #col-right .col-wrap,
 	.taxonomy-download_language #col-left .col-wrap,
 	.taxonomy-download_language #col-right .col-wrap {
 		padding: 0;
 	}
 
 	.taxonomy-download_category #col-right .wp-list-table,
+	.taxonomy-download_range #col-right .wp-list-table,
 	.taxonomy-download_language #col-right .wp-list-table {
 		width: 100%;
 	}

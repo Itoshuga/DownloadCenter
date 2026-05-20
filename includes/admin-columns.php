@@ -24,12 +24,9 @@ function ctd_filter_document_columns( $columns ) {
 	$new_columns['title']          = __( 'Titre', 'centre-telechargement' );
 	$new_columns['ctd_pdf']        = __( 'Fichier PDF', 'centre-telechargement' );
 	$new_columns['ctd_categories'] = __( 'Catégories', 'centre-telechargement' );
+	$new_columns['ctd_ranges']     = __( 'Gammes', 'centre-telechargement' );
 	$new_columns['ctd_languages']  = __( 'Langues', 'centre-telechargement' );
 	$new_columns['ctd_status']     = __( 'Statut', 'centre-telechargement' );
-
-	if ( isset( $columns['date'] ) ) {
-		$new_columns['date'] = $columns['date'];
-	}
 
 	return $new_columns;
 }
@@ -47,6 +44,10 @@ function ctd_render_document_column( $column, $post_id ) {
 
 		case 'ctd_categories':
 			ctd_render_document_categories_column( $post_id );
+			break;
+
+		case 'ctd_ranges':
+			ctd_render_document_ranges_column( $post_id );
 			break;
 
 		case 'ctd_languages':
@@ -124,6 +125,39 @@ function ctd_render_document_categories_column( $post_id ) {
  * @param int $post_id Post ID.
  * @return void
  */
+function ctd_render_document_ranges_column( $post_id ) {
+	$terms = get_the_terms( $post_id, CTD_RANGE_TAXONOMY );
+
+	if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		echo '<span class="ctd-empty-value">—</span>';
+		return;
+	}
+
+	echo '<div class="ctd-category-list">';
+
+	foreach ( $terms as $term ) {
+		$url = add_query_arg(
+			array(
+				'post_type'                 => CTD_POST_TYPE,
+				'ctd_download_range_filter' => $term->slug,
+			),
+			admin_url( 'edit.php' )
+		);
+
+		printf(
+			'<a class="ctd-category-chip" href="%1$s">%2$s</a>',
+			esc_url( $url ),
+			esc_html( $term->name )
+		);
+	}
+
+	echo '</div>';
+}
+
+/**
+ * @param int $post_id Post ID.
+ * @return void
+ */
 function ctd_render_document_languages_column( $post_id ) {
 	$terms = get_the_terms( $post_id, CTD_LANGUAGE_TAXONOMY );
 
@@ -175,6 +209,9 @@ function ctd_render_document_filters( $post_type ) {
 	$selected_category = isset( $_GET['ctd_download_category_filter'] )
 		? sanitize_title( wp_unslash( $_GET['ctd_download_category_filter'] ) )
 		: '';
+	$selected_range    = isset( $_GET['ctd_download_range_filter'] )
+		? sanitize_title( wp_unslash( $_GET['ctd_download_range_filter'] ) )
+		: '';
 	$selected_language = isset( $_GET['ctd_download_language_filter'] )
 		? sanitize_title( wp_unslash( $_GET['ctd_download_language_filter'] ) )
 		: '';
@@ -193,6 +230,21 @@ function ctd_render_document_filters( $post_type ) {
 			'orderby'         => 'name',
 			'value_field'     => 'slug',
 			'selected'        => $selected_category,
+			'show_count'      => false,
+		)
+	);
+
+	wp_dropdown_categories(
+		array(
+			'taxonomy'        => CTD_RANGE_TAXONOMY,
+			'name'            => 'ctd_download_range_filter',
+			'id'              => 'ctd_download_range_filter',
+			'show_option_all' => __( 'Toutes les gammes', 'centre-telechargement' ),
+			'hide_empty'      => false,
+			'hierarchical'    => true,
+			'orderby'         => 'name',
+			'value_field'     => 'slug',
+			'selected'        => $selected_range,
 			'show_count'      => false,
 		)
 	);
@@ -260,6 +312,9 @@ function ctd_filter_admin_documents_query( $query ) {
 	$category  = isset( $_GET['ctd_download_category_filter'] )
 		? sanitize_title( wp_unslash( $_GET['ctd_download_category_filter'] ) )
 		: '';
+	$range     = isset( $_GET['ctd_download_range_filter'] )
+		? sanitize_title( wp_unslash( $_GET['ctd_download_range_filter'] ) )
+		: '';
 	$language  = isset( $_GET['ctd_download_language_filter'] )
 		? sanitize_title( wp_unslash( $_GET['ctd_download_language_filter'] ) )
 		: '';
@@ -269,6 +324,14 @@ function ctd_filter_admin_documents_query( $query ) {
 			'taxonomy' => CTD_TAXONOMY,
 			'field'    => 'slug',
 			'terms'    => $category,
+		);
+	}
+
+	if ( $range ) {
+		$tax_query[] = array(
+			'taxonomy' => CTD_RANGE_TAXONOMY,
+			'field'    => 'slug',
+			'terms'    => $range,
 		);
 	}
 

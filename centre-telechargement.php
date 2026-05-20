@@ -18,8 +18,10 @@ define( 'CTD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'CTD_ADMIN_LOGO_URL', CTD_PLUGIN_URL . 'assets/images/icons/plasteurop_logo.svg' );
 define( 'CTD_POST_TYPE', 'download_document' );
 define( 'CTD_TAXONOMY', 'download_category' );
+define( 'CTD_RANGE_TAXONOMY', 'download_range' );
 define( 'CTD_LANGUAGE_TAXONOMY', 'download_language' );
 define( 'CTD_LANGUAGE_FLAG_META', '_ctd_language_flag' );
+define( 'CTD_LANGUAGE_FLAG_ATTACHMENT_META', '_ctd_language_flag_attachment_id' );
 define( 'CTD_LANGUAGE_FLAGS_DIR', CTD_PLUGIN_DIR . 'assets/images/flags/' );
 define( 'CTD_LANGUAGE_FLAGS_URL', CTD_PLUGIN_URL . 'assets/images/flags/' );
 define( 'CTD_META_FILE_ID', '_ctd_pdf_file_id' );
@@ -198,9 +200,59 @@ function ctd_get_language_flag_filename( $term ) {
 
 /**
  * @param WP_Term|int $term Language term or term ID.
+ * @return int
+ */
+function ctd_get_language_flag_attachment_id( $term ) {
+	if ( is_numeric( $term ) ) {
+		$term = get_term( absint( $term ), CTD_LANGUAGE_TAXONOMY );
+	}
+
+	if ( ! ( $term instanceof WP_Term ) || is_wp_error( $term ) ) {
+		return 0;
+	}
+
+	$attachment_id = absint( get_term_meta( $term->term_id, CTD_LANGUAGE_FLAG_ATTACHMENT_META, true ) );
+
+	if ( ! $attachment_id || ! ctd_attachment_is_language_flag_image( $attachment_id ) ) {
+		return 0;
+	}
+
+	return $attachment_id;
+}
+
+/**
+ * @param int $attachment_id Attachment ID.
+ * @return bool
+ */
+function ctd_attachment_is_language_flag_image( $attachment_id ) {
+	$attachment = get_post( $attachment_id );
+
+	if ( ! $attachment || 'attachment' !== $attachment->post_type ) {
+		return false;
+	}
+
+	$mime = (string) get_post_mime_type( $attachment );
+
+	return 0 === strpos( $mime, 'image/' );
+}
+
+/**
+ * @param WP_Term|int $term Language term or term ID.
  * @return string
  */
 function ctd_get_language_flag_url( $term ) {
+	$attachment_id = ctd_get_language_flag_attachment_id( $term );
+
+	if ( $attachment_id ) {
+		$attachment_url = wp_get_attachment_image_url( $attachment_id, 'thumbnail' );
+
+		if ( ! $attachment_url ) {
+			$attachment_url = wp_get_attachment_url( $attachment_id );
+		}
+
+		return $attachment_url ? $attachment_url : '';
+	}
+
 	$filename = ctd_get_language_flag_filename( $term );
 
 	if ( ! $filename || ! file_exists( CTD_LANGUAGE_FLAGS_DIR . $filename ) ) {
@@ -270,7 +322,7 @@ function ctd_enqueue_admin_assets( $hook_suffix ) {
 
 	$is_document_post_type = isset( $screen->post_type ) && CTD_POST_TYPE === $screen->post_type;
 	$is_document_taxonomy  = isset( $screen->taxonomy )
-		&& in_array( $screen->taxonomy, array( CTD_TAXONOMY, CTD_LANGUAGE_TAXONOMY ), true );
+		&& in_array( $screen->taxonomy, array( CTD_TAXONOMY, CTD_RANGE_TAXONOMY, CTD_LANGUAGE_TAXONOMY ), true );
 
 	if ( ! $is_document_post_type && ! $is_document_taxonomy ) {
 		return;
@@ -283,10 +335,21 @@ function ctd_enqueue_admin_assets( $hook_suffix ) {
 		CTD_VERSION
 	);
 
+	if ( $is_document_taxonomy ) {
+		wp_enqueue_script( 'jquery' );
+		wp_add_inline_script( 'jquery', ctd_get_taxonomy_refresh_script() );
+	}
+
 	if ( $is_document_post_type && in_array( $screen->base, array( 'post', 'post-new' ), true ) ) {
 		wp_enqueue_media();
 		wp_enqueue_script( 'jquery' );
 		wp_add_inline_script( 'jquery', ctd_get_media_script() );
+	}
+
+	if ( isset( $screen->taxonomy ) && CTD_LANGUAGE_TAXONOMY === $screen->taxonomy ) {
+		wp_enqueue_media();
+		wp_enqueue_script( 'jquery' );
+		wp_add_inline_script( 'jquery', ctd_get_language_flag_media_script() );
 	}
 }
 
@@ -372,6 +435,158 @@ function ctd_get_media_script() {
 		$('#ctd-remove-pdf').addClass('hidden');
 		$('#ctd-pdf-placeholder').removeClass('hidden');
 		$('.ctd-file-preview').removeClass('has-file');
+	});
+})(jQuery);
+JS;
+}
+
+/**
+ * @return string
+ */
+function ctd_get_taxonomy_refresh_script() {
+	$taxonomies = wp_json_encode(
+		array(
+			CTD_TAXONOMY,
+			CTD_RANGE_TAXONOMY,
+			CTD_LANGUAGE_TAXONOMY,
+		)
+	);
+
+	return <<<JS
+(function($) {
+	'use strict';
+
+	var managedTaxonomies = $taxonomies;
+	var reloadQueued = false;
+
+	function getDataValue(data, key) {
+		var params;
+
+		if (!data) {
+			return '';
+		}
+
+		if (typeof data === 'string') {
+			params = new URLSearchParams(data);
+			return params.get(key) || '';
+		}
+
+		if (typeof FormData !== 'undefined' && data instanceof FormData) {
+			return data.get(key) || '';
+		}
+
+		if (typeof data === 'object' && data[key] !== undefined) {
+			return data[key];
+		}
+
+		return '';
+	}
+
+	function shouldReload(settings, responseText, statusCode) {
+		var action = getDataValue(settings.data, 'action');
+		var taxonomy = getDataValue(settings.data, 'taxonomy');
+
+		if (statusCode !== 200 || (action !== 'add-tag' && action !== 'delete-tag')) {
+			return false;
+		}
+
+		if (taxonomy && managedTaxonomies.indexOf(taxonomy) === -1) {
+			return false;
+		}
+
+		if (responseText === '0' || responseText === '-1' || responseText.indexOf('<wp_error') !== -1) {
+			return false;
+		}
+
+		return true;
+	}
+
+	$(document).ajaxComplete(function(event, jqXHR, settings) {
+		if (reloadQueued || !shouldReload(settings || {}, jqXHR.responseText || '', jqXHR.status)) {
+			return;
+		}
+
+		reloadQueued = true;
+		window.setTimeout(function() {
+			window.location.reload();
+		}, 250);
+	});
+})(jQuery);
+JS;
+}
+
+/**
+ * @return string
+ */
+function ctd_get_language_flag_media_script() {
+	return <<<'JS'
+(function($) {
+	'use strict';
+
+	var mediaFrame = null;
+
+	function getPreviewUrl(attachment) {
+		if (attachment.sizes && attachment.sizes.thumbnail && attachment.sizes.thumbnail.url) {
+			return attachment.sizes.thumbnail.url;
+		}
+
+		return attachment.url || '';
+	}
+
+	function clearMediaFlag() {
+		$('#ctd_language_flag_attachment_id').val('');
+		$('#ctd-language-flag-media-preview').attr('src', '').addClass('hidden');
+		$('#ctd-language-flag-media-placeholder').removeClass('hidden');
+		$('#ctd-language-flag-media-filename').text('Aucune image sélectionnée');
+		$('#ctd-remove-language-flag-media').addClass('hidden');
+	}
+
+	function renderSelection(attachment) {
+		var previewUrl = getPreviewUrl(attachment);
+
+		$('#ctd_language_flag_attachment_id').val(attachment.id || '');
+		$('#ctd-language-flag-media-preview').attr('src', previewUrl).toggleClass('hidden', !previewUrl);
+		$('#ctd-language-flag-media-placeholder').toggleClass('hidden', !!previewUrl);
+		$('#ctd-language-flag-media-filename').text(attachment.filename || attachment.title || 'Image sélectionnée');
+		$('#ctd-remove-language-flag-media').removeClass('hidden');
+	}
+
+	$(document).on('click', '.ctd-select-language-flag-media', function(event) {
+		event.preventDefault();
+
+		if (mediaFrame) {
+			mediaFrame.open();
+			return;
+		}
+
+		mediaFrame = wp.media({
+			title: 'Sélectionner un drapeau',
+			button: {
+				text: 'Utiliser cette image'
+			},
+			multiple: false,
+			library: {
+				type: 'image'
+			}
+		});
+
+		mediaFrame.on('select', function() {
+			var attachment = mediaFrame.state().get('selection').first().toJSON();
+
+			if (attachment.mime && attachment.mime.indexOf('image/') !== 0) {
+				window.alert('Veuillez choisir une image.');
+				return;
+			}
+
+			renderSelection(attachment);
+		});
+
+		mediaFrame.open();
+	});
+
+	$(document).on('click', '.ctd-remove-language-flag-media', function(event) {
+		event.preventDefault();
+		clearMediaFlag();
 	});
 })(jQuery);
 JS;
