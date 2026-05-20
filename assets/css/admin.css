@@ -1,24 +1,37 @@
 body.post-type-download_document,
 body.taxonomy-download_category,
+body.taxonomy-download_language,
 .post-type-download_document #wpwrap,
 .taxonomy-download_category #wpwrap,
+.taxonomy-download_language #wpwrap,
 .post-type-download_document #wpbody,
 .taxonomy-download_category #wpbody,
+.taxonomy-download_language #wpbody,
 .post-type-download_document #wpbody-content,
 .taxonomy-download_category #wpbody-content,
+.taxonomy-download_language #wpbody-content,
 .post-type-download_document #wpcontent,
-.taxonomy-download_category #wpcontent {
+.taxonomy-download_category #wpcontent,
+.taxonomy-download_language #wpcontent {
 	background: #f6f7fb;
 }
 
 .post-type-download_document #wpbody-content,
-.taxonomy-download_category #wpbody-content {
+.taxonomy-download_category #wpbody-content,
+.taxonomy-download_language #wpbody-content {
 	min-height: calc(100vh - 32px);
 }
 
 .post-type-download_document .wrap,
-.taxonomy-download_category .wrap {
+.taxonomy-download_category .wrap,
+.taxonomy-download_language .wrap {
 	max-width: 1320px;
+}
+
+.post-type-download_document.edit-php .wrap,
+.taxonomy-download_category.edit-tags-php .wrap,
+.taxonomy-download_language.edit-tags-php .wrap {
+	max-width: none;
 }
 
 .post-type-download_document.post-php .wrap,
@@ -27,7 +40,8 @@ body.taxonomy-download_category,
 }
 
 .post-type-download_document .wrap h1.wp-heading-inline,
-.taxonomy-download_category .wrap h1.wp-heading-inline {
+.taxonomy-download_category .wrap h1.wp-heading-inline,
+.taxonomy-download_language .wrap h1.wp-heading-inline {
 	color: #172033;
 	font-weight: 700;
 	letter-spacing: 0;
@@ -127,7 +141,11 @@ body.taxonomy-download_category,
 }
 
 .post-type-download_document .column-ctd_categories {
-	width: 22%;
+	width: 18%;
+}
+
+.post-type-download_document .column-ctd_languages {
+	width: 16%;
 }
 
 .post-type-download_document .column-ctd_status {
@@ -208,6 +226,61 @@ body.taxonomy-download_category,
 .ctd-category-chip:focus {
 	background: #e2eee9;
 	color: #173b32;
+}
+
+.ctd-language-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.ctd-language-badge,
+.ctd-language-badge-link {
+	align-items: center;
+	display: inline-flex;
+	gap: 7px;
+}
+
+.ctd-language-badge {
+	background: #fff7ed;
+	border: 1px solid #fed7aa;
+	border-radius: 999px;
+	color: #9a3412;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1.4;
+	padding: 3px 9px;
+	white-space: nowrap;
+}
+
+.ctd-language-badge img {
+	border-radius: 999px;
+	box-shadow: 0 0 0 1px rgba(23, 32, 51, 0.12);
+	height: 16px;
+	object-fit: cover;
+	width: 16px;
+}
+
+.ctd-language-badge-link {
+	text-decoration: none;
+}
+
+.ctd-language-badge-link:hover .ctd-language-badge,
+.ctd-language-badge-link:focus .ctd-language-badge {
+	background: #ffedd5;
+	color: #7c2d12;
+}
+
+.taxonomy-download_language .column-ctd_flag {
+	width: 170px;
+}
+
+.ctd-language-flag-select {
+	min-width: 220px;
+}
+
+.ctd-language-preview {
+	margin-top: 10px;
 }
 
 .ctd-empty-value {
@@ -346,6 +419,37 @@ body.taxonomy-download_category,
 	.post-type-download_document #poststuff #post-body.columns-2 #postbox-container-1 {
 		margin-right: -300px;
 		width: 280px;
+	}
+}
+
+@media screen and (min-width: 783px) {
+	.taxonomy-download_category #col-container,
+	.taxonomy-download_language #col-container {
+		display: grid;
+		gap: 20px;
+		grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+	}
+
+	.taxonomy-download_category #col-left,
+	.taxonomy-download_category #col-right,
+	.taxonomy-download_language #col-left,
+	.taxonomy-download_language #col-right {
+		float: none;
+		margin: 0;
+		min-width: 0;
+		width: auto;
+	}
+
+	.taxonomy-download_category #col-left .col-wrap,
+	.taxonomy-download_category #col-right .col-wrap,
+	.taxonomy-download_language #col-left .col-wrap,
+	.taxonomy-download_language #col-right .col-wrap {
+		padding: 0;
+	}
+
+	.taxonomy-download_category #col-right .wp-list-table,
+	.taxonomy-download_language #col-right .wp-list-table {
+		width: 100%;
 	}
 }
 

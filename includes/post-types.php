@@ -10,7 +10,7 @@ function ctd_register_post_type() {
 	$labels = array(
 		'name'                  => __( 'Documents PDF', 'centre-telechargement' ),
 		'singular_name'         => __( 'Document PDF', 'centre-telechargement' ),
-		'menu_name'             => __( 'Centre de téléchargement', 'centre-telechargement' ),
+		'menu_name'             => __( 'Documents', 'centre-telechargement' ),
 		'name_admin_bar'        => __( 'Document PDF', 'centre-telechargement' ),
 		'add_new'               => __( 'Ajouter un document', 'centre-telechargement' ),
 		'add_new_item'          => __( 'Ajouter un document', 'centre-telechargement' ),
@@ -44,7 +44,7 @@ function ctd_register_post_type() {
 			'capabilities'        => ctd_get_admin_only_post_capabilities(),
 			'map_meta_cap'        => false,
 			'menu_position'       => 25,
-			'menu_icon'           => 'dashicons-download',
+			'menu_icon'           => CTD_ADMIN_LOGO_URL,
 			'hierarchical'        => false,
 			'supports'            => array( 'title' ),
 			'has_archive'         => false,

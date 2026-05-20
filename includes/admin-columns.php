@@ -24,6 +24,7 @@ function ctd_filter_document_columns( $columns ) {
 	$new_columns['title']          = __( 'Titre', 'centre-telechargement' );
 	$new_columns['ctd_pdf']        = __( 'Fichier PDF', 'centre-telechargement' );
 	$new_columns['ctd_categories'] = __( 'Catégories', 'centre-telechargement' );
+	$new_columns['ctd_languages']  = __( 'Langues', 'centre-telechargement' );
 	$new_columns['ctd_status']     = __( 'Statut', 'centre-telechargement' );
 
 	if ( isset( $columns['date'] ) ) {
@@ -46,6 +47,10 @@ function ctd_render_document_column( $column, $post_id ) {
 
 		case 'ctd_categories':
 			ctd_render_document_categories_column( $post_id );
+			break;
+
+		case 'ctd_languages':
+			ctd_render_document_languages_column( $post_id );
 			break;
 
 		case 'ctd_status':
@@ -116,6 +121,39 @@ function ctd_render_document_categories_column( $post_id ) {
 }
 
 /**
+ * @param int $post_id Post ID.
+ * @return void
+ */
+function ctd_render_document_languages_column( $post_id ) {
+	$terms = get_the_terms( $post_id, CTD_LANGUAGE_TAXONOMY );
+
+	if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		echo '<span class="ctd-empty-value">—</span>';
+		return;
+	}
+
+	echo '<div class="ctd-language-list">';
+
+	foreach ( $terms as $term ) {
+		$url = add_query_arg(
+			array(
+				'post_type'                  => CTD_POST_TYPE,
+				'ctd_download_language_filter' => $term->slug,
+			),
+			admin_url( 'edit.php' )
+		);
+
+		printf(
+			'<a class="ctd-language-badge-link" href="%1$s">%2$s</a>',
+			esc_url( $url ),
+			ctd_get_language_badge_html( $term ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		);
+	}
+
+	echo '</div>';
+}
+
+/**
  * @param array<string, string> $columns Sortable columns.
  * @return array<string, string>
  */
@@ -137,22 +175,40 @@ function ctd_render_document_filters( $post_type ) {
 	$selected_category = isset( $_GET['ctd_download_category_filter'] )
 		? sanitize_title( wp_unslash( $_GET['ctd_download_category_filter'] ) )
 		: '';
+	$selected_language = isset( $_GET['ctd_download_language_filter'] )
+		? sanitize_title( wp_unslash( $_GET['ctd_download_language_filter'] ) )
+		: '';
 	$selected_status   = isset( $_GET['ctd_document_status_filter'] )
 		? ctd_normalize_document_status( wp_unslash( $_GET['ctd_document_status_filter'] ), '' )
 		: '';
 
 	wp_dropdown_categories(
 		array(
-			'taxonomy'          => CTD_TAXONOMY,
-			'name'              => 'ctd_download_category_filter',
-			'id'                => 'ctd_download_category_filter',
-			'show_option_all'   => __( 'Toutes les catégories', 'centre-telechargement' ),
-			'hide_empty'        => false,
-			'hierarchical'      => true,
-			'orderby'           => 'name',
-			'value_field'       => 'slug',
-			'selected'          => $selected_category,
-			'show_count'        => false,
+			'taxonomy'        => CTD_TAXONOMY,
+			'name'            => 'ctd_download_category_filter',
+			'id'              => 'ctd_download_category_filter',
+			'show_option_all' => __( 'Toutes les catégories', 'centre-telechargement' ),
+			'hide_empty'      => false,
+			'hierarchical'    => true,
+			'orderby'         => 'name',
+			'value_field'     => 'slug',
+			'selected'        => $selected_category,
+			'show_count'      => false,
+		)
+	);
+
+	wp_dropdown_categories(
+		array(
+			'taxonomy'        => CTD_LANGUAGE_TAXONOMY,
+			'name'            => 'ctd_download_language_filter',
+			'id'              => 'ctd_download_language_filter',
+			'show_option_all' => __( 'Toutes les langues', 'centre-telechargement' ),
+			'hide_empty'      => false,
+			'hierarchical'    => false,
+			'orderby'         => 'name',
+			'value_field'     => 'slug',
+			'selected'        => $selected_language,
+			'show_count'      => false,
 		)
 	);
 	?>
@@ -199,20 +255,32 @@ function ctd_filter_admin_documents_query( $query ) {
 		$query->set( 'meta_query', $meta_query );
 	}
 
-	$category = isset( $_GET['ctd_download_category_filter'] )
+	$tax_query = $query->get( 'tax_query' );
+	$tax_query = is_array( $tax_query ) ? $tax_query : array();
+	$category  = isset( $_GET['ctd_download_category_filter'] )
 		? sanitize_title( wp_unslash( $_GET['ctd_download_category_filter'] ) )
+		: '';
+	$language  = isset( $_GET['ctd_download_language_filter'] )
+		? sanitize_title( wp_unslash( $_GET['ctd_download_language_filter'] ) )
 		: '';
 
 	if ( $category ) {
-		$tax_query = $query->get( 'tax_query' );
-		$tax_query = is_array( $tax_query ) ? $tax_query : array();
-
 		$tax_query[] = array(
 			'taxonomy' => CTD_TAXONOMY,
 			'field'    => 'slug',
 			'terms'    => $category,
 		);
+	}
 
+	if ( $language ) {
+		$tax_query[] = array(
+			'taxonomy' => CTD_LANGUAGE_TAXONOMY,
+			'field'    => 'slug',
+			'terms'    => $language,
+		);
+	}
+
+	if ( ! empty( $tax_query ) ) {
 		$query->set( 'tax_query', $tax_query );
 	}
 
