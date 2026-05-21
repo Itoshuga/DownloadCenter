@@ -360,6 +360,72 @@ body.taxonomy-download_language,
 	gap: 8px;
 }
 
+.ctd-term-relationship-grid {
+	display: grid;
+	gap: 14px;
+	grid-template-columns: 1fr;
+	margin-top: 10px;
+}
+
+.ctd-term-relationship-panel {
+	background: #fff;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	box-sizing: border-box;
+	display: grid;
+	gap: 10px;
+	padding: 12px;
+}
+
+.ctd-term-relationship-panel > strong {
+	color: #172033;
+	font-size: 13px;
+}
+
+.ctd-term-relationship-list {
+	display: grid;
+	gap: 7px;
+	padding-right: 2px;
+}
+
+.ctd-term-relationship-list-ranges {
+	max-height: 220px;
+	overflow: auto;
+}
+
+.ctd-term-relationship-option {
+	align-items: center;
+	background: #f8fafc;
+	border: 1px solid #edf1f7;
+	border-radius: 7px;
+	box-sizing: border-box;
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	margin: 0;
+	min-height: 34px;
+	padding: 7px 9px;
+}
+
+.ctd-term-relationship-option:hover {
+	background: #f4f8ff;
+	border-color: #c9d9ff;
+}
+
+.ctd-term-relationship-option input {
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+.ctd-term-relationship-option .ctd-language-badge {
+	min-width: 0;
+}
+
+.taxonomy-download_category .column-ctd_ranges,
+.taxonomy-download_category .column-ctd_languages {
+	width: 18%;
+}
+
 .ctd-empty-value {
 	color: #7a8495;
 }
@@ -800,5 +866,9 @@ body.taxonomy-download_language,
 
 	.ctd-file-preview {
 		align-items: flex-start;
+	}
+
+	.ctd-term-relationship-grid {
+		grid-template-columns: 1fr;
 	}
 }

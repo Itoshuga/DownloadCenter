@@ -20,6 +20,8 @@ define( 'CTD_POST_TYPE', 'download_document' );
 define( 'CTD_TAXONOMY', 'download_category' );
 define( 'CTD_RANGE_TAXONOMY', 'download_range' );
 define( 'CTD_LANGUAGE_TAXONOMY', 'download_language' );
+define( 'CTD_CATEGORY_RANGE_META', '_ctd_category_range_ids' );
+define( 'CTD_CATEGORY_LANGUAGE_META', '_ctd_category_language_ids' );
 define( 'CTD_LANGUAGE_FLAG_META', '_ctd_language_flag' );
 define( 'CTD_LANGUAGE_FLAG_ATTACHMENT_META', '_ctd_language_flag_attachment_id' );
 define( 'CTD_LANGUAGE_FLAGS_DIR', CTD_PLUGIN_DIR . 'assets/images/flags/' );
@@ -386,6 +388,138 @@ function ctd_get_language_badge_html( $term ) {
 	);
 }
 
+/**
+ * @param mixed $term_ids Term IDs candidate.
+ * @return array<int>
+ */
+function ctd_sanitize_term_id_list( $term_ids ) {
+	if ( ! is_array( $term_ids ) ) {
+		$term_ids = array( $term_ids );
+	}
+
+	$term_ids = array_map( 'absint', $term_ids );
+	$term_ids = array_filter( $term_ids );
+	$term_ids = array_unique( $term_ids );
+
+	return array_values( $term_ids );
+}
+
+/**
+ * @param WP_Term|int $category Category term or term ID.
+ * @return WP_Term|null
+ */
+function ctd_get_category_term( $category ) {
+	if ( is_numeric( $category ) ) {
+		$category = get_term( absint( $category ), CTD_TAXONOMY );
+	}
+
+	if ( ! ( $category instanceof WP_Term ) || is_wp_error( $category ) ) {
+		return null;
+	}
+
+	return $category;
+}
+
+/**
+ * @param WP_Term|int $category Category term or term ID.
+ * @param string      $meta_key Relationship meta key.
+ * @return array<int>
+ */
+function ctd_get_category_linked_term_ids( $category, $meta_key ) {
+	$category = ctd_get_category_term( $category );
+
+	if ( ! $category ) {
+		return array();
+	}
+
+	return ctd_sanitize_term_id_list( get_term_meta( $category->term_id, $meta_key, true ) );
+}
+
+/**
+ * @param WP_Term|int $category Category term or term ID.
+ * @return array<int>
+ */
+function ctd_get_category_linked_range_ids( $category ) {
+	return ctd_get_category_linked_term_ids( $category, CTD_CATEGORY_RANGE_META );
+}
+
+/**
+ * @param WP_Term|int $category Category term or term ID.
+ * @return array<int>
+ */
+function ctd_get_category_linked_language_ids( $category ) {
+	return ctd_get_category_linked_term_ids( $category, CTD_CATEGORY_LANGUAGE_META );
+}
+
+/**
+ * Returns configured linked terms. An empty result means the category has no restriction.
+ *
+ * @param WP_Term|int $category Category term or term ID.
+ * @param string      $taxonomy Target taxonomy.
+ * @return array<WP_Term>
+ */
+function ctd_get_category_linked_terms( $category, $taxonomy ) {
+	$meta_key = '';
+
+	if ( CTD_RANGE_TAXONOMY === $taxonomy ) {
+		$meta_key = CTD_CATEGORY_RANGE_META;
+	} elseif ( CTD_LANGUAGE_TAXONOMY === $taxonomy ) {
+		$meta_key = CTD_CATEGORY_LANGUAGE_META;
+	}
+
+	if ( ! $meta_key ) {
+		return array();
+	}
+
+	$term_ids = ctd_get_category_linked_term_ids( $category, $meta_key );
+
+	if ( empty( $term_ids ) ) {
+		return array();
+	}
+
+	$terms = get_terms(
+		array(
+			'taxonomy'   => $taxonomy,
+			'include'    => $term_ids,
+			'hide_empty' => false,
+			'orderby'    => 'include',
+		)
+	);
+
+	return is_wp_error( $terms ) ? array() : $terms;
+}
+
+/**
+ * Returns terms available for filters. If a category has no configured links,
+ * all terms stay available for backward compatibility.
+ *
+ * @param WP_Term|int|string $category Category term, term ID or slug.
+ * @param string             $taxonomy Target taxonomy.
+ * @return array<WP_Term>
+ */
+function ctd_get_category_available_filter_terms( $category, $taxonomy ) {
+	if ( is_string( $category ) && ! is_numeric( $category ) ) {
+		$category = get_term_by( 'slug', sanitize_title( $category ), CTD_TAXONOMY );
+	}
+
+	$linked_terms = ctd_get_category_linked_terms( $category, $taxonomy );
+
+	if ( ! empty( $linked_terms ) ) {
+		return $linked_terms;
+	}
+
+	$terms = get_terms(
+		array(
+			'taxonomy'   => $taxonomy,
+			'hide_empty' => false,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		)
+	);
+
+	return is_wp_error( $terms ) ? array() : $terms;
+}
+
 require_once CTD_PLUGIN_DIR . 'includes/post-types.php';
 require_once CTD_PLUGIN_DIR . 'includes/taxonomies.php';
 require_once CTD_PLUGIN_DIR . 'includes/analytics.php';
@@ -441,6 +575,11 @@ function ctd_enqueue_admin_assets( $hook_suffix ) {
 		wp_add_inline_script( 'jquery', ctd_get_taxonomy_refresh_script() );
 	}
 
+	if ( $is_document_post_type && 'edit' === $screen->base ) {
+		wp_enqueue_script( 'jquery' );
+		wp_add_inline_script( 'jquery', ctd_get_admin_document_filter_relationship_script() );
+	}
+
 	if ( $is_document_post_type && in_array( $screen->base, array( 'post', 'post-new' ), true ) ) {
 		wp_enqueue_media();
 		wp_enqueue_script( 'jquery' );
@@ -452,6 +591,35 @@ function ctd_enqueue_admin_assets( $hook_suffix ) {
 		wp_enqueue_script( 'jquery' );
 		wp_add_inline_script( 'jquery', ctd_get_language_flag_media_script() );
 	}
+}
+
+/**
+ * @return array<string, array<string, array<int, string>>>
+ */
+function ctd_get_category_filter_relationships() {
+	$relationships = array();
+	$categories    = get_terms(
+		array(
+			'taxonomy'   => CTD_TAXONOMY,
+			'hide_empty' => false,
+		)
+	);
+
+	if ( is_wp_error( $categories ) ) {
+		return $relationships;
+	}
+
+	foreach ( $categories as $category ) {
+		$range_terms    = ctd_get_category_linked_terms( $category, CTD_RANGE_TAXONOMY );
+		$language_terms = ctd_get_category_linked_terms( $category, CTD_LANGUAGE_TAXONOMY );
+
+		$relationships[ $category->slug ] = array(
+			'ranges'    => array_values( wp_list_pluck( $range_terms, 'slug' ) ),
+			'languages' => array_values( wp_list_pluck( $language_terms, 'slug' ) ),
+		);
+	}
+
+	return $relationships;
 }
 
 function ctd_render_admin_menu_logo_styles() {
@@ -638,6 +806,51 @@ function ctd_get_taxonomy_refresh_script() {
 			window.location.reload();
 		}, 250);
 	});
+})(jQuery);
+JS;
+}
+
+/**
+ * @return string
+ */
+function ctd_get_admin_document_filter_relationship_script() {
+	$relationships = wp_json_encode( ctd_get_category_filter_relationships() );
+	$relationships = $relationships ? $relationships : '{}';
+
+	return <<<JS
+(function($) {
+	'use strict';
+
+	var relationships = $relationships;
+
+	function applyRelatedOptions(select, allowedSlugs) {
+		var hasRestriction = Array.isArray(allowedSlugs) && allowedSlugs.length > 0;
+		var selectedValue = select.val() || '';
+
+		select.find('option').each(function() {
+			var option = this;
+			var value = option.value || '';
+			var isAvailable = !value || !hasRestriction || allowedSlugs.indexOf(value) !== -1;
+
+			option.hidden = !isAvailable;
+			option.disabled = !isAvailable;
+
+			if (!isAvailable && selectedValue === value) {
+				select.val('');
+			}
+		});
+	}
+
+	function refreshRelatedFilters() {
+		var category = $('#ctd_download_category_filter').val() || '';
+		var relationship = relationships[category] || {};
+
+		applyRelatedOptions($('#ctd_download_range_filter'), relationship.ranges || []);
+		applyRelatedOptions($('#ctd_download_language_filter'), relationship.languages || []);
+	}
+
+	$(document).on('change', '#ctd_download_category_filter', refreshRelatedFilters);
+	$(refreshRelatedFilters);
 })(jQuery);
 JS;
 }

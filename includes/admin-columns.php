@@ -234,34 +234,18 @@ function ctd_render_document_filters( $post_type ) {
 		)
 	);
 
-	wp_dropdown_categories(
-		array(
-			'taxonomy'        => CTD_RANGE_TAXONOMY,
-			'name'            => 'ctd_download_range_filter',
-			'id'              => 'ctd_download_range_filter',
-			'show_option_all' => __( 'Toutes les gammes', 'centre-telechargement' ),
-			'hide_empty'      => false,
-			'hierarchical'    => true,
-			'orderby'         => 'name',
-			'value_field'     => 'slug',
-			'selected'        => $selected_range,
-			'show_count'      => false,
-		)
+	ctd_render_document_related_taxonomy_filter(
+		CTD_RANGE_TAXONOMY,
+		'ctd_download_range_filter',
+		__( 'Toutes les gammes', 'centre-telechargement' ),
+		$selected_range
 	);
 
-	wp_dropdown_categories(
-		array(
-			'taxonomy'        => CTD_LANGUAGE_TAXONOMY,
-			'name'            => 'ctd_download_language_filter',
-			'id'              => 'ctd_download_language_filter',
-			'show_option_all' => __( 'Toutes les langues', 'centre-telechargement' ),
-			'hide_empty'      => false,
-			'hierarchical'    => false,
-			'orderby'         => 'name',
-			'value_field'     => 'slug',
-			'selected'        => $selected_language,
-			'show_count'      => false,
-		)
+	ctd_render_document_related_taxonomy_filter(
+		CTD_LANGUAGE_TAXONOMY,
+		'ctd_download_language_filter',
+		__( 'Toutes les langues', 'centre-telechargement' ),
+		$selected_language
 	);
 	?>
 	<label class="screen-reader-text" for="ctd_document_status_filter">
@@ -276,6 +260,30 @@ function ctd_render_document_filters( $post_type ) {
 		<?php endforeach; ?>
 	</select>
 	<?php
+}
+
+/**
+ * @param string $taxonomy Related taxonomy.
+ * @param string $name Select field name and ID.
+ * @param string $all_label Default option label.
+ * @param string $selected Selected term slug.
+ * @return void
+ */
+function ctd_render_document_related_taxonomy_filter( $taxonomy, $name, $all_label, $selected ) {
+	$args = array(
+		'taxonomy'        => $taxonomy,
+		'name'            => $name,
+		'id'              => $name,
+		'show_option_all' => $all_label,
+		'hide_empty'      => false,
+		'hierarchical'    => CTD_LANGUAGE_TAXONOMY !== $taxonomy,
+		'orderby'         => 'name',
+		'value_field'     => 'slug',
+		'selected'        => $selected,
+		'show_count'      => false,
+	);
+
+	wp_dropdown_categories( $args );
 }
 
 /**
@@ -320,6 +328,10 @@ function ctd_filter_admin_documents_query( $query ) {
 		: '';
 
 	if ( $category ) {
+		ctd_normalize_admin_related_filters_for_category( $category, $range, $language );
+	}
+
+	if ( $category ) {
 		$tax_query[] = array(
 			'taxonomy' => CTD_TAXONOMY,
 			'field'    => 'slug',
@@ -350,5 +362,41 @@ function ctd_filter_admin_documents_query( $query ) {
 	if ( 'ctd_status' === $query->get( 'orderby' ) ) {
 		$query->set( 'meta_key', CTD_META_STATUS );
 		$query->set( 'orderby', 'meta_value' );
+	}
+}
+
+/**
+ * Clears incompatible range/language filters when a category has explicit links.
+ *
+ * @param string $category_slug Selected category slug.
+ * @param string $range_slug Selected range slug.
+ * @param string $language_slug Selected language slug.
+ * @return void
+ */
+function ctd_normalize_admin_related_filters_for_category( $category_slug, &$range_slug, &$language_slug ) {
+	$category = get_term_by( 'slug', $category_slug, CTD_TAXONOMY );
+
+	if ( ! ( $category instanceof WP_Term ) ) {
+		return;
+	}
+
+	$range_ids = ctd_get_category_linked_range_ids( $category );
+
+	if ( ! empty( $range_ids ) && $range_slug ) {
+		$range = get_term_by( 'slug', $range_slug, CTD_RANGE_TAXONOMY );
+
+		if ( ! ( $range instanceof WP_Term ) || ! in_array( $range->term_id, $range_ids, true ) ) {
+			$range_slug = '';
+		}
+	}
+
+	$language_ids = ctd_get_category_linked_language_ids( $category );
+
+	if ( ! empty( $language_ids ) && $language_slug ) {
+		$language = get_term_by( 'slug', $language_slug, CTD_LANGUAGE_TAXONOMY );
+
+		if ( ! ( $language instanceof WP_Term ) || ! in_array( $language->term_id, $language_ids, true ) ) {
+			$language_slug = '';
+		}
 	}
 }
