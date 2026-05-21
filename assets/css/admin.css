@@ -365,7 +365,8 @@ body.taxonomy-download_language,
 }
 
 #ctd_document_file .inside,
-#ctd_document_access .inside {
+#ctd_document_access .inside,
+#ctd_document_analytics .inside {
 	margin: 0;
 	padding: 0;
 }
@@ -598,6 +599,126 @@ body.taxonomy-download_language,
 .ctd-user-access-identity span {
 	color: #64748b;
 	font-size: 12px;
+}
+
+.ctd-analytics-card {
+	gap: 14px;
+}
+
+.ctd-analytics-empty {
+	background: #f8fafc;
+	border: 1px dashed #c8d2df;
+	border-radius: 8px;
+	color: #64748b;
+	margin: 0;
+	padding: 14px;
+}
+
+.ctd-line-chart-panel {
+	background: #f8fafc;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	display: grid;
+	gap: 10px;
+	padding: 14px;
+}
+
+.ctd-line-chart-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	justify-content: flex-end;
+}
+
+.ctd-line-chart-legend-item {
+	align-items: center;
+	color: #334155;
+	display: inline-flex;
+	font-size: 12px;
+	font-weight: 700;
+	gap: 6px;
+}
+
+.ctd-line-chart-legend-item::before {
+	border-radius: 999px;
+	content: "";
+	display: inline-block;
+	height: 10px;
+	width: 10px;
+}
+
+.ctd-line-chart-legend-open::before {
+	background: #1d4ed8;
+}
+
+.ctd-line-chart-legend-download::before {
+	background: #137a3b;
+}
+
+.ctd-line-chart-scroll {
+	overflow-x: auto;
+}
+
+.ctd-line-chart {
+	display: block;
+	min-width: 760px;
+	width: 100%;
+}
+
+.ctd-line-chart-axis {
+	stroke: #94a3b8;
+	stroke-width: 1.5;
+}
+
+.ctd-line-chart-grid {
+	stroke: #dfe5ef;
+	stroke-width: 1;
+}
+
+.ctd-line-chart-x-tick {
+	stroke: #94a3b8;
+	stroke-width: 1;
+}
+
+.ctd-line-chart-axis-label,
+.ctd-line-chart-tick,
+.ctd-line-chart-date {
+	fill: #64748b;
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.ctd-line-chart-axis-label {
+	fill: #334155;
+	font-size: 12px;
+}
+
+.ctd-line-chart-line {
+	fill: none;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 3;
+}
+
+.ctd-line-chart-line-open {
+	stroke: #1d4ed8;
+}
+
+.ctd-line-chart-line-download {
+	stroke: #137a3b;
+}
+
+.ctd-line-chart-point {
+	stroke: #fff;
+	stroke-width: 2;
+}
+
+.ctd-line-chart-point-open {
+	fill: #1d4ed8;
+}
+
+.ctd-line-chart-point-download {
+	fill: #137a3b;
 }
 
 @media screen and (min-width: 851px) {

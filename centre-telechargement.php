@@ -388,6 +388,7 @@ function ctd_get_language_badge_html( $term ) {
 
 require_once CTD_PLUGIN_DIR . 'includes/post-types.php';
 require_once CTD_PLUGIN_DIR . 'includes/taxonomies.php';
+require_once CTD_PLUGIN_DIR . 'includes/analytics.php';
 require_once CTD_PLUGIN_DIR . 'includes/meta-boxes.php';
 require_once CTD_PLUGIN_DIR . 'includes/admin-columns.php';
 
@@ -398,6 +399,7 @@ function ctd_activate() {
 	ctd_register_post_type();
 	ctd_register_taxonomy();
 	ctd_seed_default_languages( true );
+	ctd_create_analytics_table();
 	flush_rewrite_rules();
 }
 

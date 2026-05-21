@@ -67,7 +67,7 @@ function ctd_current_user_can_manage_documents() {
 function ctd_add_document_meta_boxes() {
 	add_meta_box(
 		'ctd_document_file',
-		__( 'Fichier PDF', 'centre-telechargement' ),
+		__( 'Document PDF Joint', 'centre-telechargement' ),
 		'ctd_render_document_file_meta_box',
 		CTD_POST_TYPE,
 		'normal',
@@ -76,8 +76,17 @@ function ctd_add_document_meta_boxes() {
 
 	add_meta_box(
 		'ctd_document_access',
-		__( 'Accès', 'centre-telechargement' ),
+		__( 'Gestion des Accès', 'centre-telechargement' ),
 		'ctd_render_document_access_meta_box',
+		CTD_POST_TYPE,
+		'normal',
+		'default'
+	);
+
+	add_meta_box(
+		'ctd_document_analytics',
+		__( 'Analyse du Document', 'centre-telechargement' ),
+		'ctd_render_document_analytics_meta_box',
 		CTD_POST_TYPE,
 		'normal',
 		'default'
@@ -93,7 +102,7 @@ function ctd_add_document_meta_boxes() {
 function ctd_filter_document_meta_box_order( $order ) {
 	$order    = is_array( $order ) ? $order : array();
 	$contexts = array( 'normal', 'side', 'advanced' );
-	$managed  = array( 'ctd_document_file', 'ctd_document_access' );
+	$managed  = array( 'ctd_document_file', 'ctd_document_access', 'ctd_document_analytics' );
 
 	foreach ( $contexts as $context ) {
 		$box_ids = isset( $order[ $context ] )
@@ -301,6 +310,155 @@ function ctd_render_document_access_meta_box( $post ) {
 					<?php endif; ?>
 				</div>
 			</div>
+		</div>
+	</div>
+	<?php
+}
+
+/**
+ * @param WP_Post $post Current post.
+ * @return void
+ */
+function ctd_render_document_analytics_meta_box( $post ) {
+	$open_counts     = ctd_get_document_daily_event_counts( $post->ID, 14, 'open' );
+	$download_counts = ctd_get_document_daily_event_counts( $post->ID, 14, 'download' );
+	$width           = 760;
+	$height          = 300;
+	$padding_top     = 22;
+	$padding_right   = 24;
+	$padding_bottom  = 48;
+	$padding_left    = 58;
+	$chart_width     = $width - $padding_left - $padding_right;
+	$chart_height    = $height - $padding_top - $padding_bottom;
+	$day_count       = count( $open_counts );
+	$max_count       = 1;
+	$open_points     = array();
+	$download_points = array();
+
+	foreach ( $open_counts as $index => $open_count ) {
+		$max_count = max( $max_count, absint( $open_count['count'] ) );
+
+		if ( isset( $download_counts[ $index ] ) ) {
+			$max_count = max( $max_count, absint( $download_counts[ $index ]['count'] ) );
+		}
+	}
+
+	foreach ( $open_counts as $index => $open_count ) {
+		$x              = $padding_left + ( $day_count > 1 ? ( $index * ( $chart_width / ( $day_count - 1 ) ) ) : ( $chart_width / 2 ) );
+		$open_value     = absint( $open_count['count'] );
+		$download_value = isset( $download_counts[ $index ] ) ? absint( $download_counts[ $index ]['count'] ) : 0;
+		$open_y         = $padding_top + $chart_height - ( $open_value / $max_count * $chart_height );
+		$download_y     = $padding_top + $chart_height - ( $download_value / $max_count * $chart_height );
+
+		$open_points[]     = array(
+			'x'     => round( $x, 2 ),
+			'y'     => round( $open_y, 2 ),
+			'count' => $open_value,
+			'label' => $open_count['label'],
+		);
+		$download_points[] = array(
+			'x'     => round( $x, 2 ),
+			'y'     => round( $download_y, 2 ),
+			'count' => $download_value,
+			'label' => $open_count['label'],
+		);
+	}
+
+	$open_polyline     = implode(
+		' ',
+		array_map(
+			static function ( $point ) {
+				return $point['x'] . ',' . $point['y'];
+			},
+			$open_points
+		)
+	);
+	$download_polyline = implode(
+		' ',
+		array_map(
+			static function ( $point ) {
+				return $point['x'] . ',' . $point['y'];
+			},
+			$download_points
+		)
+	);
+	$y_ticks           = array_unique(
+		array(
+			0,
+			(int) ceil( $max_count / 4 ),
+			(int) ceil( $max_count / 2 ),
+			(int) ceil( ( $max_count * 3 ) / 4 ),
+			$max_count,
+		)
+	);
+	sort( $y_ticks, SORT_NUMERIC );
+	?>
+	<div class="ctd-document-card ctd-analytics-card">
+		<div class="ctd-field">
+			<span class="ctd-field-label">
+				<?php esc_html_e( 'Ouvertures et téléchargements jour après jour', 'centre-telechargement' ); ?>
+			</span>
+			<div class="ctd-line-chart-panel">
+				<div class="ctd-line-chart-legend">
+					<span class="ctd-line-chart-legend-item ctd-line-chart-legend-open"><?php esc_html_e( 'Ouvertures', 'centre-telechargement' ); ?></span>
+					<span class="ctd-line-chart-legend-item ctd-line-chart-legend-download"><?php esc_html_e( 'Téléchargements', 'centre-telechargement' ); ?></span>
+				</div>
+
+				<div class="ctd-line-chart-scroll">
+					<svg
+						class="ctd-line-chart"
+						viewBox="0 0 <?php echo esc_attr( $width ); ?> <?php echo esc_attr( $height ); ?>"
+						role="img"
+						aria-label="<?php esc_attr_e( 'Graphique des ouvertures et téléchargements par date', 'centre-telechargement' ); ?>"
+						focusable="false"
+					>
+						<line class="ctd-line-chart-axis" x1="<?php echo esc_attr( $padding_left ); ?>" y1="<?php echo esc_attr( $padding_top ); ?>" x2="<?php echo esc_attr( $padding_left ); ?>" y2="<?php echo esc_attr( $padding_top + $chart_height ); ?>" />
+						<line class="ctd-line-chart-axis" x1="<?php echo esc_attr( $padding_left ); ?>" y1="<?php echo esc_attr( $padding_top + $chart_height ); ?>" x2="<?php echo esc_attr( $padding_left + $chart_width ); ?>" y2="<?php echo esc_attr( $padding_top + $chart_height ); ?>" />
+						<text class="ctd-line-chart-axis-label" x="<?php echo esc_attr( $padding_left + ( $chart_width / 2 ) ); ?>" y="<?php echo esc_attr( $height - 4 ); ?>" text-anchor="middle"><?php esc_html_e( 'Date', 'centre-telechargement' ); ?></text>
+						<text class="ctd-line-chart-axis-label" transform="rotate(-90)" x="<?php echo esc_attr( -1 * ( $padding_top + ( $chart_height / 2 ) ) ); ?>" y="14" text-anchor="middle"><?php esc_html_e( 'Nombre', 'centre-telechargement' ); ?></text>
+
+						<?php foreach ( $y_ticks as $tick ) : ?>
+							<?php $tick_y = $padding_top + $chart_height - ( $tick / $max_count * $chart_height ); ?>
+							<line class="ctd-line-chart-grid" x1="<?php echo esc_attr( $padding_left ); ?>" y1="<?php echo esc_attr( round( $tick_y, 2 ) ); ?>" x2="<?php echo esc_attr( $padding_left + $chart_width ); ?>" y2="<?php echo esc_attr( round( $tick_y, 2 ) ); ?>" />
+							<text class="ctd-line-chart-tick" x="<?php echo esc_attr( $padding_left - 10 ); ?>" y="<?php echo esc_attr( round( $tick_y + 4, 2 ) ); ?>" text-anchor="end"><?php echo esc_html( number_format_i18n( $tick ) ); ?></text>
+						<?php endforeach; ?>
+
+						<?php foreach ( $open_points as $index => $point ) : ?>
+							<line class="ctd-line-chart-x-tick" x1="<?php echo esc_attr( $point['x'] ); ?>" y1="<?php echo esc_attr( $padding_top + $chart_height ); ?>" x2="<?php echo esc_attr( $point['x'] ); ?>" y2="<?php echo esc_attr( $padding_top + $chart_height + 5 ); ?>" />
+							<text class="ctd-line-chart-date" x="<?php echo esc_attr( $point['x'] ); ?>" y="<?php echo esc_attr( $padding_top + $chart_height + 22 ); ?>" text-anchor="middle"><?php echo esc_html( $point['label'] ); ?></text>
+						<?php endforeach; ?>
+
+						<polyline class="ctd-line-chart-line ctd-line-chart-line-download" points="<?php echo esc_attr( $download_polyline ); ?>" />
+						<polyline class="ctd-line-chart-line ctd-line-chart-line-open" points="<?php echo esc_attr( $open_polyline ); ?>" />
+
+						<?php foreach ( $download_points as $point ) : ?>
+							<circle class="ctd-line-chart-point ctd-line-chart-point-download" cx="<?php echo esc_attr( $point['x'] ); ?>" cy="<?php echo esc_attr( $point['y'] ); ?>" r="3.5">
+								<title><?php echo esc_html( sprintf( __( '%1$s : %2$d téléchargement(s)', 'centre-telechargement' ), $point['label'], $point['count'] ) ); ?></title>
+							</circle>
+						<?php endforeach; ?>
+
+						<?php foreach ( $open_points as $point ) : ?>
+							<circle class="ctd-line-chart-point ctd-line-chart-point-open" cx="<?php echo esc_attr( $point['x'] ); ?>" cy="<?php echo esc_attr( $point['y'] ); ?>" r="3.5">
+								<title><?php echo esc_html( sprintf( __( '%1$s : %2$d ouverture(s)', 'centre-telechargement' ), $point['label'], $point['count'] ) ); ?></title>
+							</circle>
+						<?php endforeach; ?>
+					</svg>
+				</div>
+			</div>
+
+			<?php if ( 1 === $max_count ) : ?>
+				<?php
+				$has_activity = false;
+				foreach ( $open_points as $index => $point ) {
+					$has_activity = $has_activity || 0 < $point['count'] || ( isset( $download_points[ $index ] ) && 0 < $download_points[ $index ]['count'] );
+				}
+				?>
+				<?php if ( ! $has_activity ) : ?>
+					<div class="ctd-analytics-empty">
+						<?php esc_html_e( 'Aucune ouverture ou téléchargement enregistré pour le moment.', 'centre-telechargement' ); ?>
+					</div>
+				<?php endif; ?>
+			<?php endif; ?>
 		</div>
 	</div>
 	<?php
