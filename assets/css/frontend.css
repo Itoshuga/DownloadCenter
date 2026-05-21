@@ -421,6 +421,10 @@ body.logged-in .ctd-front-login-prompt {
 	width: 100% !important;
 }
 
+.ctd-front-library .ctd-front-filter-option[hidden] {
+	display: none !important;
+}
+
 .ctd-front-library .ctd-front-filter-option:hover,
 .ctd-front-library .ctd-front-filter-option:focus,
 .ctd-front-library .ctd-front-filter-option.is-selected {

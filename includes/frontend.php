@@ -26,12 +26,13 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 	$documents = ctd_get_frontend_library_documents();
 	$filters   = ctd_get_frontend_library_filters( $documents );
 	$settings  = ctd_get_frontend_settings();
+	$relationships = ctd_get_frontend_filter_relationships_json();
 
 	ctd_enqueue_frontend_assets();
 
 	ob_start();
 	?>
-	<div class="ctd-front-library" data-ctd-library>
+	<div class="ctd-front-library" data-ctd-library data-ctd-filter-relationships="<?php echo esc_attr( $relationships ); ?>">
 		<?php ctd_render_frontend_login_prompt( $settings ); ?>
 
 		<div class="ctd-front-filters" aria-label="<?php esc_attr_e( 'Filtres des documents', 'centre-telechargement' ); ?>">
@@ -72,6 +73,18 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 	<?php
 
 	return ob_get_clean();
+}
+
+/**
+ * @return string
+ */
+function ctd_get_frontend_filter_relationships_json() {
+	$relationships = function_exists( 'ctd_get_category_filter_relationships' )
+		? ctd_get_category_filter_relationships()
+		: array();
+	$json          = wp_json_encode( $relationships );
+
+	return $json ? $json : '{}';
 }
 
 /**
@@ -387,7 +400,7 @@ function ctd_render_frontend_filter_select( $filter_key, $label, $empty_label, $
 	$button_id = $field_id . '-button';
 	$menu_id   = $field_id . '-menu';
 	?>
-	<div class="ctd-front-filter ctd-front-filter-<?php echo esc_attr( sanitize_html_class( $filter_key ) ); ?>" data-ctd-filter-control>
+	<div class="ctd-front-filter ctd-front-filter-<?php echo esc_attr( sanitize_html_class( $filter_key ) ); ?>" data-ctd-filter-control="<?php echo esc_attr( $filter_key ); ?>">
 		<span class="ctd-front-filter-label" id="<?php echo esc_attr( $label_id ); ?>">
 			<?php echo esc_html( $label ); ?>
 		</span>

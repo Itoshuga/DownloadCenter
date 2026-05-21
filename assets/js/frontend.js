@@ -44,6 +44,105 @@
 		return field ? field.value : '';
 	}
 
+	function getFilterControl(library, key) {
+		return library.querySelector('[data-ctd-filter-control="' + key + '"]');
+	}
+
+	function getRelationships(library) {
+		var raw = library.getAttribute('data-ctd-filter-relationships') || '{}';
+
+		try {
+			return JSON.parse(raw);
+		} catch (error) {
+			return {};
+		}
+	}
+
+	function isRelatedOptionAllowed(value, allowedValues) {
+		if (!value) {
+			return true;
+		}
+
+		if (!Array.isArray(allowedValues) || allowedValues.length === 0) {
+			return true;
+		}
+
+		return allowedValues.indexOf(value) !== -1;
+	}
+
+	function setFilterFromOption(control, option) {
+		var field = control.querySelector('[data-ctd-filter]');
+		var current = control.querySelector('[data-ctd-filter-current]');
+		var content = option.querySelector('[data-ctd-filter-option-content]');
+
+		if (field) {
+			field.value = option.getAttribute('data-value') || '';
+		}
+
+		if (current && content) {
+			current.innerHTML = content.innerHTML;
+		}
+
+		Array.prototype.forEach.call(control.querySelectorAll('[data-ctd-filter-option]'), function(item) {
+			var isSelected = item === option;
+
+			item.classList.toggle('is-selected', isSelected);
+			item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+		});
+	}
+
+	function resetFilterControl(control) {
+		var defaultOption;
+
+		if (!control) {
+			return;
+		}
+
+		defaultOption = control.querySelector('[data-ctd-filter-option][data-value=""]');
+
+		if (defaultOption) {
+			setFilterFromOption(control, defaultOption);
+		}
+	}
+
+	function refreshRelatedFilterOptions(library) {
+		var category = getFilterValue(library, 'category');
+		var relationships = getRelationships(library);
+		var relationship = category && relationships[category] ? relationships[category] : null;
+
+		updateRelatedFilterControl(library, 'range', relationship ? relationship.ranges : []);
+		updateRelatedFilterControl(library, 'language', relationship ? relationship.languages : []);
+	}
+
+	function updateRelatedFilterControl(library, key, allowedValues) {
+		var control = getFilterControl(library, key);
+		var selectedIsAllowed = true;
+		var selectedOption;
+
+		if (!control) {
+			return;
+		}
+
+		selectedOption = control.querySelector('[data-ctd-filter-option].is-selected');
+
+		Array.prototype.forEach.call(control.querySelectorAll('[data-ctd-filter-option]'), function(option) {
+			var value = option.getAttribute('data-value') || '';
+			var isAllowed = isRelatedOptionAllowed(value, allowedValues);
+
+			option.hidden = !isAllowed;
+			option.disabled = !isAllowed;
+			option.setAttribute('aria-hidden', isAllowed ? 'false' : 'true');
+
+			if (option === selectedOption && !isAllowed) {
+				selectedIsAllowed = false;
+			}
+		});
+
+		if (!selectedIsAllowed) {
+			resetFilterControl(control);
+		}
+	}
+
 	function closeFilter(control) {
 		var button = control.querySelector('[data-ctd-filter-button]');
 
@@ -75,24 +174,11 @@
 	}
 
 	function selectFilterOption(library, control, option) {
-		var field = control.querySelector('[data-ctd-filter]');
-		var current = control.querySelector('[data-ctd-filter-current]');
-		var content = option.querySelector('[data-ctd-filter-option-content]');
+		setFilterFromOption(control, option);
 
-		if (field) {
-			field.value = option.getAttribute('data-value') || '';
+		if (control.getAttribute('data-ctd-filter-control') === 'category') {
+			refreshRelatedFilterOptions(library);
 		}
-
-		if (current && content) {
-			current.innerHTML = content.innerHTML;
-		}
-
-		Array.prototype.forEach.call(control.querySelectorAll('[data-ctd-filter-option]'), function(item) {
-			var isSelected = item === option;
-
-			item.classList.toggle('is-selected', isSelected);
-			item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
-		});
 
 		closeFilter(control);
 		refreshLibrary(library);
@@ -121,6 +207,7 @@
 			initFilterControl(library, control);
 		});
 
+		refreshRelatedFilterOptions(library);
 		refreshLibrary(library);
 	}
 
