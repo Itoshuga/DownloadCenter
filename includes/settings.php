@@ -52,6 +52,169 @@ function ctd_enqueue_settings_assets( $hook_suffix ) {
 		'wp-color-picker',
 		"jQuery(function($) { $('.ctd-color-field').wpColorPicker(); });"
 	);
+
+	ctd_enqueue_admin_tour_assets( 'settings' );
+}
+
+/**
+ * @param WP_Screen|null $screen Current screen.
+ * @param string         $hook_suffix Current admin hook.
+ * @return string
+ */
+function ctd_get_admin_tour_current_page_key( $screen = null, $hook_suffix = '' ) {
+	if ( 'download_document_page_ctd-settings' === $hook_suffix ) {
+		return 'settings';
+	}
+
+	if ( ! $screen instanceof WP_Screen ) {
+		return '';
+	}
+
+	if ( isset( $screen->taxonomy ) ) {
+		if ( CTD_RANGE_TAXONOMY === $screen->taxonomy ) {
+			return 'range';
+		}
+
+		if ( CTD_TAXONOMY === $screen->taxonomy ) {
+			return 'category';
+		}
+	}
+
+	if (
+		isset( $screen->post_type )
+		&& CTD_POST_TYPE === $screen->post_type
+		&& in_array( $screen->base, array( 'post', 'post-new' ), true )
+	) {
+		return 'document';
+	}
+
+	return '';
+}
+
+/**
+ * @param string $current_page Current tour page key.
+ * @return void
+ */
+function ctd_enqueue_admin_tour_assets( $current_page = '' ) {
+	if ( ! current_user_can( 'manage_options' ) || wp_script_is( 'ctd-admin-tour', 'enqueued' ) ) {
+		return;
+	}
+
+	wp_enqueue_script(
+		'ctd-admin-tour',
+		CTD_PLUGIN_URL . 'assets/js/admin-tour.js',
+		array(),
+		CTD_VERSION,
+		true
+	);
+
+	wp_localize_script( 'ctd-admin-tour', 'ctdAdminTour', ctd_get_admin_tour_config( $current_page ) );
+}
+
+/**
+ * @param string $current_page Current tour page key.
+ * @return array<string, mixed>
+ */
+function ctd_get_admin_tour_config( $current_page ) {
+	return array(
+		'currentPage' => $current_page,
+		'storageKey'  => 'ctd_admin_tour_state',
+		'pages'       => array(
+			'settings' => admin_url( 'edit.php?post_type=' . CTD_POST_TYPE . '&page=ctd-settings' ),
+			'range'    => admin_url( 'edit-tags.php?taxonomy=' . CTD_RANGE_TAXONOMY . '&post_type=' . CTD_POST_TYPE ),
+			'category' => admin_url( 'edit-tags.php?taxonomy=' . CTD_TAXONOMY . '&post_type=' . CTD_POST_TYPE ),
+			'document' => admin_url( 'post-new.php?post_type=' . CTD_POST_TYPE ),
+		),
+		'i18n'        => array(
+			'next'     => __( 'Suivant', 'centre-telechargement' ),
+			'previous' => __( 'Précédent', 'centre-telechargement' ),
+			'finish'   => __( 'Terminer', 'centre-telechargement' ),
+			'close'    => __( 'Fermer', 'centre-telechargement' ),
+			'step'     => __( 'Étape', 'centre-telechargement' ),
+			'of'       => __( 'sur', 'centre-telechargement' ),
+		),
+		'steps'       => ctd_get_admin_tour_steps(),
+	);
+}
+
+/**
+ * @return array<int, array<string, string>>
+ */
+function ctd_get_admin_tour_steps() {
+	return array(
+		array(
+			'page'     => 'settings',
+			'selector' => '.ctd-tour-launch-card',
+			'title'    => __( 'Guide du Centre de Téléchargement', 'centre-telechargement' ),
+			'body'     => __( 'Cette visite vous accompagne dans le flux conseillé : créer les filtres, lier les catégories, puis publier un document PDF.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'range',
+			'selector' => '#addtag',
+			'title'    => __( 'Créer une gamme', 'centre-telechargement' ),
+			'body'     => __( 'Commencez par créer les gammes qui serviront de filtres. Une gamme peut ensuite être liée à une ou plusieurs catégories.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'category',
+			'selector' => '#addtag',
+			'title'    => __( 'Créer une catégorie', 'centre-telechargement' ),
+			'body'     => __( 'La catégorie est le filtre principal du front. Donnez-lui un nom clair, puis configurez les informations liées juste en dessous.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'category',
+			'selector' => '.term-ctd-category-protected-wrap',
+			'title'    => __( 'Indiquer la protection', 'centre-telechargement' ),
+			'body'     => __( 'Cette case est informative : elle affiche un cadenas dans le filtre front, sans modifier les droits réels des documents.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'category',
+			'selector' => '.term-ctd-category-relations-wrap',
+			'title'    => __( 'Lier gammes et langues', 'centre-telechargement' ),
+			'body'     => __( 'Sélectionnez les gammes et langues disponibles pour cette catégorie. Ces liaisons servent à guider les filtres et la saisie des documents.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#titlediv',
+			'title'    => __( 'Nom du document', 'centre-telechargement' ),
+			'body'     => __( 'Le titre WordPress devient le nom affiché sous la vignette PDF sur le front-office.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#ctd_document_file',
+			'title'    => __( 'Ajouter le PDF', 'centre-telechargement' ),
+			'body'     => __( 'Choisissez un fichier PDF depuis la médiathèque. Le plugin vérifie que le fichier sélectionné est bien un PDF.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#' . CTD_TAXONOMY . 'div',
+			'title'    => __( 'Attribuer une catégorie', 'centre-telechargement' ),
+			'body'     => __( 'Cochez la catégorie du document. Les gammes et langues visibles dans les blocs suivants s’adaptent aux liaisons configurées sur la catégorie.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#' . CTD_RANGE_TAXONOMY . 'div',
+			'title'    => __( 'Choisir la gamme', 'centre-telechargement' ),
+			'body'     => __( 'Sélectionnez la gamme du document. Si aucune catégorie n’est cochée, les gammes ne sont pas proposées afin d’éviter les erreurs de saisie.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#' . CTD_LANGUAGE_TAXONOMY . 'div',
+			'title'    => __( 'Choisir la langue', 'centre-telechargement' ),
+			'body'     => __( 'Sélectionnez la langue du PDF. Les langues proposées suivent les liaisons définies dans la catégorie.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#ctd_document_access',
+			'title'    => __( 'Définir la protection', 'centre-telechargement' ),
+			'body'     => __( 'Choisissez Public ou Protégé. En protégé, vous pouvez autoriser tous les utilisateurs connectés ou seulement certains utilisateurs.', 'centre-telechargement' ),
+		),
+		array(
+			'page'     => 'document',
+			'selector' => '#submitdiv',
+			'title'    => __( 'Publier le document', 'centre-telechargement' ),
+			'body'     => __( 'Une fois le PDF, les filtres et l’accès configurés, publiez le document. Il apparaîtra ensuite dans le shortcode si l’utilisateur est autorisé.', 'centre-telechargement' ),
+		),
+	);
 }
 
 /**
@@ -237,6 +400,17 @@ function ctd_render_settings_page() {
 	?>
 	<div class="wrap ctd-settings-page">
 		<h1><?php esc_html_e( 'Paramètres', 'centre-telechargement' ); ?></h1>
+
+		<section class="ctd-tour-launch-card">
+			<div>
+				<h2><?php esc_html_e( 'Guide d’utilisation', 'centre-telechargement' ); ?></h2>
+				<p><?php esc_html_e( 'Lancez une procédure pas à pas pour apprendre à créer une gamme, une catégorie liée, puis un document PDF protégé ou public.', 'centre-telechargement' ); ?></p>
+			</div>
+			<button type="button" class="button button-primary" data-ctd-tour-start>
+				<?php esc_html_e( 'Lancer la procédure pas à pas', 'centre-telechargement' ); ?>
+			</button>
+		</section>
+
 		<form method="post" action="options.php">
 			<?php settings_fields( 'ctd_frontend_settings' ); ?>
 

@@ -921,6 +921,157 @@ body.download_document_page_ctd-settings,
 	max-width: 1180px;
 }
 
+.ctd-tour-launch-card {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	box-shadow: 0 16px 36px rgba(23, 32, 51, 0.06);
+	box-sizing: border-box;
+	display: flex;
+	gap: 18px;
+	justify-content: space-between;
+	margin-top: 18px;
+	max-width: 1040px;
+	padding: 20px;
+}
+
+.ctd-tour-launch-card h2 {
+	color: #172033;
+	font-size: 18px;
+	line-height: 1.3;
+	margin: 0;
+}
+
+.ctd-tour-launch-card p {
+	color: #5f6b7a;
+	margin: 6px 0 0;
+	max-width: 720px;
+}
+
+.ctd-tour-launch-card .button-primary {
+	background: #1d4ed8;
+	border-color: #1d4ed8;
+	border-radius: 7px;
+	flex: 0 0 auto;
+	font-weight: 700;
+	min-height: 38px;
+	padding: 0 16px;
+}
+
+.ctd-tour-launch-card .button-primary:hover,
+.ctd-tour-launch-card .button-primary:focus {
+	background: #163ea9;
+	border-color: #163ea9;
+}
+
+.ctd-tour-backdrop {
+	background: rgba(15, 23, 42, 0.48);
+	bottom: 0;
+	left: 0;
+	pointer-events: none;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 100000;
+}
+
+.ctd-tour-highlight {
+	border-radius: 8px !important;
+	box-shadow:
+		0 0 0 4px rgba(17, 169, 207, 0.45),
+		0 20px 55px rgba(15, 23, 42, 0.28) !important;
+	position: relative !important;
+	z-index: 100001 !important;
+}
+
+.ctd-tour-card {
+	background: #fff;
+	border: 1px solid #c9d9ff;
+	border-radius: 10px;
+	box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+	box-sizing: border-box;
+	color: #172033;
+	padding: 18px;
+	position: fixed;
+	z-index: 100002;
+}
+
+.ctd-tour-progress {
+	color: #1d4ed8;
+	display: block;
+	font-size: 12px;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	margin: 0 32px 8px 0;
+	text-transform: uppercase;
+}
+
+.ctd-tour-card h2 {
+	color: #172033;
+	font-size: 19px;
+	line-height: 1.3;
+	margin: 0 32px 8px 0;
+}
+
+.ctd-tour-card p {
+	color: #475569;
+	font-size: 14px;
+	line-height: 1.55;
+	margin: 0;
+}
+
+.ctd-tour-close {
+	align-items: center;
+	background: #f8fafc;
+	border: 1px solid #dfe5ef;
+	border-radius: 999px;
+	color: #334155;
+	cursor: pointer;
+	display: inline-flex;
+	font-size: 20px;
+	height: 30px;
+	justify-content: center;
+	line-height: 1;
+	padding: 0;
+	position: absolute;
+	right: 14px;
+	top: 14px;
+	width: 30px;
+}
+
+.ctd-tour-close:hover,
+.ctd-tour-close:focus {
+	background: #eef4ff;
+	border-color: #c9d9ff;
+	color: #1d4ed8;
+	outline: 0;
+}
+
+.ctd-tour-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
+}
+
+.ctd-tour-actions .button {
+	border-radius: 7px;
+	font-weight: 700;
+	min-height: 34px;
+}
+
+.ctd-tour-actions .button-primary {
+	background: #1d4ed8;
+	border-color: #1d4ed8;
+}
+
+.ctd-tour-actions .button-primary:hover,
+.ctd-tour-actions .button-primary:focus {
+	background: #163ea9;
+	border-color: #163ea9;
+}
+
 .ctd-settings-layout {
 	display: grid;
 	gap: 18px;
@@ -1098,6 +1249,11 @@ body.download_document_page_ctd-settings,
 
 	.ctd-term-relationship-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.ctd-tour-launch-card {
+		align-items: flex-start;
+		flex-direction: column;
 	}
 
 	.ctd-settings-fields-colors,
