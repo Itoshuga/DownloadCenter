@@ -184,6 +184,10 @@ body.taxonomy-download_language,
 	width: 120px;
 }
 
+.post-type-download_document .ctd-related-term-hidden {
+	display: none !important;
+}
+
 .ctd-status-badge {
 	align-items: center;
 	border: 1px solid transparent;

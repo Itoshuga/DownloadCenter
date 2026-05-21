@@ -520,6 +520,45 @@ function ctd_get_category_available_filter_terms( $category, $taxonomy ) {
 	return is_wp_error( $terms ) ? array() : $terms;
 }
 
+/**
+ * Returns allowed related terms for selected categories.
+ *
+ * @param mixed  $category_ids Category term IDs.
+ * @param string $taxonomy Target taxonomy.
+ * @return array{restricted: bool, ids: array<int>}
+ */
+function ctd_get_allowed_related_term_ids_for_categories( $category_ids, $taxonomy ) {
+	$category_ids = ctd_sanitize_term_id_list( $category_ids );
+
+	if ( empty( $category_ids ) || ! in_array( $taxonomy, array( CTD_RANGE_TAXONOMY, CTD_LANGUAGE_TAXONOMY ), true ) ) {
+		return array(
+			'restricted' => true,
+			'ids'        => array(),
+		);
+	}
+
+	$allowed_ids = array();
+
+	foreach ( $category_ids as $category_id ) {
+		$category = ctd_get_category_term( $category_id );
+
+		if ( ! $category ) {
+			continue;
+		}
+
+		$term_ids = CTD_RANGE_TAXONOMY === $taxonomy
+			? ctd_get_category_linked_range_ids( $category )
+			: ctd_get_category_linked_language_ids( $category );
+
+		$allowed_ids = array_merge( $allowed_ids, $term_ids );
+	}
+
+	return array(
+		'restricted' => true,
+		'ids'        => ctd_sanitize_term_id_list( $allowed_ids ),
+	);
+}
+
 require_once CTD_PLUGIN_DIR . 'includes/post-types.php';
 require_once CTD_PLUGIN_DIR . 'includes/taxonomies.php';
 require_once CTD_PLUGIN_DIR . 'includes/analytics.php';
@@ -585,6 +624,7 @@ function ctd_enqueue_admin_assets( $hook_suffix ) {
 		wp_enqueue_media();
 		wp_enqueue_script( 'jquery' );
 		wp_add_inline_script( 'jquery', ctd_get_media_script() );
+		wp_add_inline_script( 'jquery', ctd_get_document_edit_relationship_script() );
 	}
 
 	if ( isset( $screen->taxonomy ) && CTD_LANGUAGE_TAXONOMY === $screen->taxonomy ) {
@@ -617,6 +657,32 @@ function ctd_get_category_filter_relationships() {
 		$relationships[ $category->slug ] = array(
 			'ranges'    => array_values( wp_list_pluck( $range_terms, 'slug' ) ),
 			'languages' => array_values( wp_list_pluck( $language_terms, 'slug' ) ),
+		);
+	}
+
+	return $relationships;
+}
+
+/**
+ * @return array<string, array<string, array<int, int>>>
+ */
+function ctd_get_category_filter_relationship_term_ids() {
+	$relationships = array();
+	$categories    = get_terms(
+		array(
+			'taxonomy'   => CTD_TAXONOMY,
+			'hide_empty' => false,
+		)
+	);
+
+	if ( is_wp_error( $categories ) ) {
+		return $relationships;
+	}
+
+	foreach ( $categories as $category ) {
+		$relationships[ (string) $category->term_id ] = array(
+			'ranges'    => ctd_get_category_linked_range_ids( $category ),
+			'languages' => ctd_get_category_linked_language_ids( $category ),
 		);
 	}
 
@@ -852,6 +918,134 @@ function ctd_get_admin_document_filter_relationship_script() {
 
 	$(document).on('change', '#ctd_download_category_filter', refreshRelatedFilters);
 	$(refreshRelatedFilters);
+})(jQuery);
+JS;
+}
+
+/**
+ * @return string
+ */
+function ctd_get_document_edit_relationship_script() {
+	$relationships = wp_json_encode( ctd_get_category_filter_relationship_term_ids() );
+	$relationships = $relationships ? $relationships : '{}';
+	$category_box  = esc_js( CTD_TAXONOMY . 'div' );
+	$range_box     = esc_js( CTD_RANGE_TAXONOMY . 'div' );
+	$language_box  = esc_js( CTD_LANGUAGE_TAXONOMY . 'div' );
+
+	return <<<JS
+(function($) {
+	'use strict';
+
+	var relationships = $relationships;
+	var boxes = {
+		category: '$category_box',
+		range: '$range_box',
+		language: '$language_box'
+	};
+
+	function getCheckboxes(boxId) {
+		return $('#' + boxId + ' input[type="checkbox"]');
+	}
+
+	function normalizeIds(ids) {
+		if (!Array.isArray(ids)) {
+			return [];
+		}
+
+		return ids.map(function(id) {
+			return String(id);
+		}).filter(Boolean);
+	}
+
+	function getSelectedCategoryIds() {
+		return getCheckboxes(boxes.category).filter(':checked').map(function() {
+			return String(this.value);
+		}).get();
+	}
+
+	function getAllowedIds(selectedCategoryIds, key) {
+		var allowedIds = [];
+		var index;
+
+		if (!selectedCategoryIds.length) {
+			return [];
+		}
+
+		for (index = 0; index < selectedCategoryIds.length; index++) {
+			var categoryId = selectedCategoryIds[index];
+			var relationship = relationships[categoryId];
+			var ids = relationship ? normalizeIds(relationship[key]) : [];
+
+			if (!relationship) {
+				continue;
+			}
+
+			ids.forEach(function(id) {
+				if (allowedIds.indexOf(id) === -1) {
+					allowedIds.push(id);
+				}
+			});
+		}
+
+		return allowedIds;
+	}
+
+	function setTermVisibility(checkbox, isVisible) {
+		var field = $(checkbox);
+		var wrapper = field.closest('li');
+
+		if (!wrapper.length) {
+			wrapper = field.closest('label');
+		}
+
+		if (!isVisible && checkbox.checked) {
+			checkbox.checked = false;
+		}
+
+		checkbox.disabled = !isVisible;
+		wrapper.toggleClass('ctd-related-term-hidden', !isVisible);
+	}
+
+	function applyRelatedTerms(boxId, key) {
+		var selectedCategoryIds = getSelectedCategoryIds();
+		var allowedIds = getAllowedIds(selectedCategoryIds, key);
+
+		getCheckboxes(boxId).each(function() {
+			var value = String(this.value);
+			var isVisible = allowedIds.indexOf(value) !== -1;
+
+			setTermVisibility(this, isVisible);
+		});
+	}
+
+	function refreshRelatedTerms() {
+		applyRelatedTerms(boxes.range, 'ranges');
+		applyRelatedTerms(boxes.language, 'languages');
+	}
+
+	$(document).on('change', '#' + boxes.category + ' input[type="checkbox"]', refreshRelatedTerms);
+
+	$(function() {
+		var categoryBox = document.getElementById(boxes.category);
+		var rangeBox = document.getElementById(boxes.range);
+		var languageBox = document.getElementById(boxes.language);
+		var observer;
+
+		refreshRelatedTerms();
+
+		if (typeof MutationObserver !== 'undefined') {
+			observer = new MutationObserver(refreshRelatedTerms);
+
+			[categoryBox, rangeBox, languageBox].forEach(function(box) {
+				if (box) {
+					observer.observe(box, {
+						childList: true,
+						subtree: true
+					});
+				}
+			});
+		}
+	});
 })(jQuery);
 JS;
 }

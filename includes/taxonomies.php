@@ -14,6 +14,7 @@ add_action( CTD_LANGUAGE_TAXONOMY . '_add_form_fields', 'ctd_render_language_add
 add_action( CTD_LANGUAGE_TAXONOMY . '_edit_form_fields', 'ctd_render_language_edit_fields' );
 add_action( 'created_' . CTD_LANGUAGE_TAXONOMY, 'ctd_save_language_term_meta' );
 add_action( 'edited_' . CTD_LANGUAGE_TAXONOMY, 'ctd_save_language_term_meta' );
+add_action( 'save_post_' . CTD_POST_TYPE, 'ctd_sync_document_related_terms_with_categories', 30, 2 );
 add_filter( 'manage_edit-' . CTD_TAXONOMY . '_columns', 'ctd_filter_category_term_columns' );
 add_filter( 'manage_' . CTD_TAXONOMY . '_custom_column', 'ctd_render_category_term_column', 10, 3 );
 add_filter( 'manage_edit-' . CTD_LANGUAGE_TAXONOMY . '_columns', 'ctd_filter_language_term_columns' );
@@ -446,6 +447,70 @@ function ctd_get_linked_terms_column_html( $term_id, $taxonomy ) {
 		esc_attr( $list_class ),
 		implode( '', $items )
 	);
+}
+
+/**
+ * @param int     $post_id Post ID.
+ * @param WP_Post $post Current post.
+ * @return void
+ */
+function ctd_sync_document_related_terms_with_categories( $post_id, $post ) {
+	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+		return;
+	}
+
+	if ( wp_is_post_revision( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) {
+		return;
+	}
+
+	$category_ids = wp_get_object_terms(
+		$post_id,
+		CTD_TAXONOMY,
+		array(
+			'fields' => 'ids',
+		)
+	);
+
+	if ( is_wp_error( $category_ids ) ) {
+		return;
+	}
+
+	ctd_restrict_document_terms_for_categories( $post_id, CTD_RANGE_TAXONOMY, $category_ids );
+	ctd_restrict_document_terms_for_categories( $post_id, CTD_LANGUAGE_TAXONOMY, $category_ids );
+}
+
+/**
+ * @param int        $post_id Post ID.
+ * @param string     $taxonomy Related taxonomy.
+ * @param array<int> $category_ids Selected category IDs.
+ * @return void
+ */
+function ctd_restrict_document_terms_for_categories( $post_id, $taxonomy, $category_ids ) {
+	$availability = ctd_get_allowed_related_term_ids_for_categories( $category_ids, $taxonomy );
+
+	if ( empty( $availability['restricted'] ) ) {
+		return;
+	}
+
+	$current_ids = wp_get_object_terms(
+		$post_id,
+		$taxonomy,
+		array(
+			'fields' => 'ids',
+		)
+	);
+
+	if ( is_wp_error( $current_ids ) || empty( $current_ids ) ) {
+		return;
+	}
+
+	$current_ids = ctd_sanitize_term_id_list( $current_ids );
+	$allowed_ids = ctd_sanitize_term_id_list( $availability['ids'] );
+	$valid_ids   = array_values( array_intersect( $current_ids, $allowed_ids ) );
+
+	if ( count( $valid_ids ) !== count( $current_ids ) ) {
+		wp_set_object_terms( $post_id, $valid_ids, $taxonomy );
+	}
 }
 
 function ctd_render_language_add_fields() {
