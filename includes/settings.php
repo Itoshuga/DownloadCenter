@@ -237,6 +237,9 @@ function ctd_get_frontend_settings_defaults() {
 		'filter_gap'             => '14px',
 		'document_min_width'     => '150px',
 		'document_gap'           => '26px',
+		'login_notice_text'      => __( 'Merci de vous connecter pour tÃ©lÃ©charger les fichiers', 'centre-telechargement' ),
+		'login_button_text'      => __( 'Connexion / Demande de Mot de Passe', 'centre-telechargement' ),
+		'password_request_shortcode' => '',
 	);
 }
 
@@ -280,7 +283,29 @@ function ctd_sanitize_frontend_settings( $settings ) {
 		'filter_gap'             => ctd_sanitize_css_length_setting( $settings['filter_gap'] ?? '', $defaults['filter_gap'] ),
 		'document_min_width'     => ctd_sanitize_css_length_setting( $settings['document_min_width'] ?? '', $defaults['document_min_width'] ),
 		'document_gap'           => ctd_sanitize_css_length_setting( $settings['document_gap'] ?? '', $defaults['document_gap'] ),
+		'login_notice_text'      => ctd_sanitize_plain_text_setting( $settings['login_notice_text'] ?? '', $defaults['login_notice_text'] ),
+		'login_button_text'      => ctd_sanitize_plain_text_setting( $settings['login_button_text'] ?? '', $defaults['login_button_text'] ),
+		'password_request_shortcode' => ctd_sanitize_shortcode_setting( $settings['password_request_shortcode'] ?? '' ),
 	);
+}
+
+/**
+ * @param mixed  $value Candidate text.
+ * @param string $fallback Fallback text.
+ * @return string
+ */
+function ctd_sanitize_plain_text_setting( $value, $fallback ) {
+	$value = sanitize_text_field( (string) $value );
+
+	return '' !== $value ? $value : $fallback;
+}
+
+/**
+ * @param mixed $value Candidate shortcode.
+ * @return string
+ */
+function ctd_sanitize_shortcode_setting( $value ) {
+	return sanitize_text_field( (string) $value );
 }
 
 /**
@@ -415,6 +440,26 @@ function ctd_render_settings_page() {
 			<?php settings_fields( 'ctd_frontend_settings' ); ?>
 
 			<div class="ctd-settings-layout">
+				<section class="ctd-settings-panel">
+					<header class="ctd-settings-panel-header">
+						<h2><?php esc_html_e( 'Connexion front', 'centre-telechargement' ); ?></h2>
+						<p><?php esc_html_e( 'Ces textes sont affichÃ©s au-dessus des filtres du shortcode pour les visiteurs non connectÃ©s.', 'centre-telechargement' ); ?></p>
+					</header>
+
+					<div class="ctd-settings-fields ctd-settings-fields-inline">
+						<?php
+						ctd_render_text_setting_field( 'login_notice_text', __( 'Texte au-dessus du bouton', 'centre-telechargement' ), $settings['login_notice_text'] );
+						ctd_render_text_setting_field( 'login_button_text', __( 'Texte du bouton', 'centre-telechargement' ), $settings['login_button_text'] );
+						?>
+					</div>
+
+					<div class="ctd-settings-fields ctd-settings-fields-single">
+						<?php
+						ctd_render_text_setting_field( 'password_request_shortcode', __( 'Shortcode du formulaire de demande de mot de passe', 'centre-telechargement' ), $settings['password_request_shortcode'] );
+						?>
+					</div>
+				</section>
+
 				<section class="ctd-settings-panel">
 					<header class="ctd-settings-panel-header">
 						<h2><?php esc_html_e( 'Couleurs du front', 'centre-telechargement' ); ?></h2>

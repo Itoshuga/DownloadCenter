@@ -25,12 +25,15 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 
 	$documents = ctd_get_frontend_library_documents();
 	$filters   = ctd_get_frontend_library_filters( $documents );
+	$settings  = ctd_get_frontend_settings();
 
 	ctd_enqueue_frontend_assets();
 
 	ob_start();
 	?>
 	<div class="ctd-front-library" data-ctd-library>
+		<?php ctd_render_frontend_login_prompt( $settings ); ?>
+
 		<div class="ctd-front-filters" aria-label="<?php esc_attr_e( 'Filtres des documents', 'centre-telechargement' ); ?>">
 			<?php
 			ctd_render_frontend_filter_select(
@@ -69,6 +72,116 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 	<?php
 
 	return ob_get_clean();
+}
+
+/**
+ * @param array<string, string> $settings Frontend settings.
+ * @return void
+ */
+function ctd_render_frontend_login_prompt( $settings ) {
+	$modal_id    = 'ctd-front-login-modal-' . wp_rand( 1000, 9999 );
+	$notice_text = isset( $settings['login_notice_text'] ) ? $settings['login_notice_text'] : '';
+	$button_text = isset( $settings['login_button_text'] ) ? $settings['login_button_text'] : '';
+	$shortcode   = isset( $settings['password_request_shortcode'] ) ? trim( $settings['password_request_shortcode'] ) : '';
+	?>
+	<div class="ctd-front-login-prompt">
+		<p><?php echo esc_html( $notice_text ); ?></p>
+		<button
+			type="button"
+			class="ctd-front-login-button"
+			aria-haspopup="dialog"
+			aria-controls="<?php echo esc_attr( $modal_id ); ?>"
+			data-ctd-modal-open="<?php echo esc_attr( $modal_id ); ?>"
+		>
+			<?php echo esc_html( $button_text ); ?>
+		</button>
+	</div>
+
+	<div
+		id="<?php echo esc_attr( $modal_id ); ?>"
+		class="ctd-front-modal"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="<?php echo esc_attr( $modal_id ); ?>-title"
+		hidden
+		data-ctd-modal
+	>
+		<div class="ctd-front-modal-backdrop" data-ctd-modal-close></div>
+		<div class="ctd-front-modal-panel" role="document">
+			<div class="ctd-front-modal-header">
+				<h2 id="<?php echo esc_attr( $modal_id ); ?>-title">
+					<?php esc_html_e( 'Accès aux documents', 'centre-telechargement' ); ?>
+				</h2>
+				<button type="button" class="ctd-front-modal-close" aria-label="<?php esc_attr_e( 'Fermer', 'centre-telechargement' ); ?>" data-ctd-modal-close>
+					<span aria-hidden="true">x</span>
+				</button>
+			</div>
+
+			<div class="ctd-front-modal-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Modes dâ€™accÃ¨s', 'centre-telechargement' ); ?>">
+				<button type="button" class="ctd-front-modal-tab is-active" role="tab" aria-selected="true" data-ctd-tab-button="login">
+					<?php esc_html_e( 'Connexion', 'centre-telechargement' ); ?>
+				</button>
+				<button type="button" class="ctd-front-modal-tab" role="tab" aria-selected="false" data-ctd-tab-button="password">
+					<?php esc_html_e( 'Demande de mot de passe', 'centre-telechargement' ); ?>
+				</button>
+			</div>
+
+			<div class="ctd-front-modal-content">
+				<div class="ctd-front-modal-pane is-active" role="tabpanel" data-ctd-tab-panel="login">
+					<?php
+					echo ctd_get_frontend_login_form_html( $modal_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+					?>
+				</div>
+
+				<div class="ctd-front-modal-pane" role="tabpanel" data-ctd-tab-panel="password" hidden>
+					<?php if ( $shortcode ) : ?>
+						<?php echo do_shortcode( $shortcode ); ?>
+					<?php else : ?>
+						<p class="ctd-front-modal-empty">
+							<?php esc_html_e( 'Ajoutez le shortcode du formulaire de contact dans les paramètres du Centre de Téléchargement.', 'centre-telechargement' ); ?>
+						</p>
+					<?php endif; ?>
+				</div>
+			</div>
+		</div>
+	</div>
+	<?php
+}
+
+/**
+ * @param string $id_suffix Unique field suffix.
+ * @return string
+ */
+function ctd_get_frontend_login_form_html( $id_suffix = '' ) {
+	$redirect_url = ctd_get_current_frontend_url();
+	$id_suffix    = sanitize_html_class( $id_suffix );
+
+	return wp_login_form(
+		array(
+			'echo'           => false,
+			'redirect'       => $redirect_url,
+			'remember'       => true,
+			'label_username' => __( 'Identifiant ou adresse e-mail', 'centre-telechargement' ),
+			'label_password' => __( 'Mot de passe', 'centre-telechargement' ),
+			'label_remember' => __( 'Se souvenir de moi', 'centre-telechargement' ),
+			'label_log_in'   => __( 'Connexion', 'centre-telechargement' ),
+			'id_username'    => $id_suffix ? $id_suffix . '-user-login' : 'user_login',
+			'id_password'    => $id_suffix ? $id_suffix . '-user-pass' : 'user_pass',
+			'id_remember'    => $id_suffix ? $id_suffix . '-rememberme' : 'rememberme',
+			'id_submit'      => $id_suffix ? $id_suffix . '-wp-submit' : 'wp-submit',
+		)
+	);
+}
+
+/**
+ * @return string
+ */
+function ctd_get_current_frontend_url() {
+	$scheme = is_ssl() ? 'https://' : 'http://';
+	$host   = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+	$uri    = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+
+	return esc_url_raw( $scheme . $host . $uri );
 }
 
 /**

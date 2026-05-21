@@ -124,11 +124,101 @@
 		refreshLibrary(library);
 	}
 
+	function getModal(id) {
+		return id ? document.getElementById(id) : null;
+	}
+
+	function openModal(modal, trigger) {
+		if (!modal) {
+			return;
+		}
+
+		modal.hidden = false;
+		modal.classList.add('is-open');
+
+		if (trigger) {
+			modal._ctdTrigger = trigger;
+		}
+
+		window.setTimeout(function() {
+			var focusable = modal.querySelector('input, button, select, textarea, a[href]');
+
+			if (focusable) {
+				focusable.focus();
+			}
+		}, 40);
+	}
+
+	function closeModal(modal) {
+		var trigger;
+
+		if (!modal) {
+			return;
+		}
+
+		trigger = modal._ctdTrigger;
+		modal.classList.remove('is-open');
+		modal.hidden = true;
+		modal._ctdTrigger = null;
+
+		if (trigger && typeof trigger.focus === 'function') {
+			trigger.focus();
+		}
+	}
+
+	function closeModals() {
+		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-modal].is-open'), closeModal);
+	}
+
+	function selectModalTab(modal, tabKey) {
+		if (!modal || !tabKey) {
+			return;
+		}
+
+		Array.prototype.forEach.call(modal.querySelectorAll('[data-ctd-tab-button]'), function(button) {
+			var isActive = button.getAttribute('data-ctd-tab-button') === tabKey;
+
+			button.classList.toggle('is-active', isActive);
+			button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+		});
+
+		Array.prototype.forEach.call(modal.querySelectorAll('[data-ctd-tab-panel]'), function(panel) {
+			var isActive = panel.getAttribute('data-ctd-tab-panel') === tabKey;
+
+			panel.classList.toggle('is-active', isActive);
+			panel.hidden = !isActive;
+		});
+	}
+
 	document.addEventListener('DOMContentLoaded', function() {
 		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-library]'), initLibrary);
 	});
 
 	document.addEventListener('click', function(event) {
+		var modalOpen = event.target.closest('[data-ctd-modal-open]');
+		var modalClose = event.target.closest('[data-ctd-modal-close]');
+		var tabButton = event.target.closest('[data-ctd-tab-button]');
+		var modal;
+
+		if (modalOpen) {
+			event.preventDefault();
+			openModal(getModal(modalOpen.getAttribute('data-ctd-modal-open')), modalOpen);
+			return;
+		}
+
+		if (modalClose) {
+			event.preventDefault();
+			closeModal(modalClose.closest('[data-ctd-modal]'));
+			return;
+		}
+
+		if (tabButton) {
+			event.preventDefault();
+			modal = tabButton.closest('[data-ctd-modal]');
+			selectModalTab(modal, tabButton.getAttribute('data-ctd-tab-button'));
+			return;
+		}
+
 		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-library]'), function(library) {
 			if (!library.contains(event.target)) {
 				closeFilters(library, null);
@@ -147,6 +237,8 @@
 		if (event.key !== 'Escape') {
 			return;
 		}
+
+		closeModals();
 
 		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-library]'), function(library) {
 			closeFilters(library, null);

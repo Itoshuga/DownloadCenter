@@ -1111,6 +1111,10 @@ body.download_document_page_ctd-settings,
 	gap: 16px;
 }
 
+.ctd-settings-fields + .ctd-settings-fields {
+	margin-top: 16px;
+}
+
 .ctd-settings-fields-colors {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
