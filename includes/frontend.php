@@ -26,7 +26,7 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 	$documents = ctd_get_frontend_library_documents();
 	$filters   = ctd_get_frontend_library_filters( $documents );
 
-	ctd_enqueue_frontend_assets( $filters['relationships'] );
+	ctd_enqueue_frontend_assets();
 
 	ob_start();
 	?>
@@ -72,19 +72,10 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 }
 
 /**
- * @param array<string, array<int, string>> $relationships Category filter relationships.
  * @return void
  */
-function ctd_enqueue_frontend_assets( $relationships ) {
+function ctd_enqueue_frontend_assets() {
 	ctd_enqueue_frontend_base_assets();
-
-	wp_localize_script(
-		'ctd-frontend',
-		'ctdDocumentsLibrary',
-		array(
-			'relationships' => $relationships,
-		)
-	);
 }
 
 function ctd_enqueue_frontend_base_assets() {
@@ -114,13 +105,6 @@ function ctd_enqueue_frontend_base_assets() {
 		true
 	);
 
-	wp_localize_script(
-		'ctd-frontend',
-		'ctdDocumentsLibrary',
-		array(
-			'relationships' => (object) array(),
-		)
-	);
 }
 
 /**
@@ -227,100 +211,43 @@ function ctd_get_document_file_action_url( $document_id, $event_type ) {
 
 /**
  * @param array<int, array<string, mixed>> $documents Frontend documents.
- * @return array{categories:array<int,array<string,string>>,ranges:array<int,array<string,string>>,languages:array<int,array<string,string>>,relationships:array<string,array<string,array<int,string>>>}
+ * @return array{categories:array<int,array<string,string>>,ranges:array<int,array<string,string>>,languages:array<int,array<string,string>>}
  */
 function ctd_get_frontend_library_filters( $documents ) {
-	$category_terms = get_terms(
+	return array(
+		'categories' => ctd_get_frontend_filter_terms( CTD_TAXONOMY ),
+		'ranges'     => ctd_get_frontend_filter_terms( CTD_RANGE_TAXONOMY ),
+		'languages'  => ctd_get_frontend_filter_terms( CTD_LANGUAGE_TAXONOMY ),
+	);
+}
+
+/**
+ * @param string $taxonomy Taxonomy name.
+ * @return array<int, array<string, string>>
+ */
+function ctd_get_frontend_filter_terms( $taxonomy ) {
+	$terms = get_terms(
 		array(
-			'taxonomy'   => CTD_TAXONOMY,
+			'taxonomy'   => $taxonomy,
 			'hide_empty' => false,
 			'orderby'    => 'name',
 			'order'      => 'ASC',
 		)
 	);
-	$category_terms = is_wp_error( $category_terms ) ? array() : $category_terms;
-	$categories     = array();
-	$ranges         = array();
-	$languages      = array();
-	$relationships  = ctd_get_frontend_category_relationships( $category_terms, $ranges, $languages );
 
-	foreach ( $category_terms as $category ) {
-		$categories[ $category->slug ] = array(
-			'name' => $category->name,
-			'slug' => $category->slug,
-		);
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return array();
 	}
 
-	return array(
-		'categories'    => ctd_sort_frontend_filter_terms( $categories ),
-		'ranges'        => ctd_sort_frontend_filter_terms( $ranges ),
-		'languages'     => ctd_sort_frontend_filter_terms( $languages ),
-		'relationships' => $relationships,
+	return array_map(
+		static function ( $term ) {
+			return array(
+				'name' => $term->name,
+				'slug' => $term->slug,
+			);
+		},
+		$terms
 	);
-}
-
-/**
- * @param array<int, WP_Term>                       $categories Available categories.
- * @param array<string, array<string, string>>      $ranges Ranges used by category links.
- * @param array<string, array<string, string>>      $languages Languages used by category links.
- * @return array<string, array<string, array<int, string>>>
- */
-function ctd_get_frontend_category_relationships( $categories, &$ranges, &$languages ) {
-	$relationships = array();
-
-	foreach ( $categories as $category ) {
-		if ( ! ( $category instanceof WP_Term ) ) {
-			continue;
-		}
-
-		$range_terms    = ctd_get_category_linked_terms( $category, CTD_RANGE_TAXONOMY );
-		$language_terms = ctd_get_category_linked_terms( $category, CTD_LANGUAGE_TAXONOMY );
-
-		ctd_add_frontend_filter_terms( $ranges, $range_terms );
-		ctd_add_frontend_filter_terms( $languages, $language_terms );
-
-		$relationships[ $category->slug ] = array(
-			'ranges'    => array_values( wp_list_pluck( $range_terms, 'slug' ) ),
-			'languages' => array_values( wp_list_pluck( $language_terms, 'slug' ) ),
-		);
-	}
-
-	return $relationships;
-}
-
-/**
- * @param array<string, array<string, string>> $target Target filter terms.
- * @param array<int, WP_Term>                  $terms Terms to add.
- * @return void
- */
-function ctd_add_frontend_filter_terms( &$target, $terms ) {
-	foreach ( $terms as $term ) {
-		if ( ! ( $term instanceof WP_Term ) ) {
-			continue;
-		}
-
-		$target[ $term->slug ] = array(
-			'name' => $term->name,
-			'slug' => $term->slug,
-		);
-	}
-}
-
-/**
- * @param array<string, array<string, string>> $terms Filter terms.
- * @return array<int, array<string, string>>
- */
-function ctd_sort_frontend_filter_terms( $terms ) {
-	$terms = array_values( $terms );
-
-	usort(
-		$terms,
-		static function ( $a, $b ) {
-			return strcasecmp( $a['name'], $b['name'] );
-		}
-	);
-
-	return $terms;
 }
 
 /**

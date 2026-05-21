@@ -22,6 +22,7 @@ define( 'CTD_RANGE_TAXONOMY', 'download_range' );
 define( 'CTD_LANGUAGE_TAXONOMY', 'download_language' );
 define( 'CTD_CATEGORY_RANGE_META', '_ctd_category_range_ids' );
 define( 'CTD_CATEGORY_LANGUAGE_META', '_ctd_category_language_ids' );
+define( 'CTD_CATEGORY_PROTECTED_HINT_META', '_ctd_category_protected_hint' );
 define( 'CTD_LANGUAGE_FLAG_META', '_ctd_language_flag' );
 define( 'CTD_LANGUAGE_FLAG_ATTACHMENT_META', '_ctd_language_flag_attachment_id' );
 define( 'CTD_LANGUAGE_FLAGS_DIR', CTD_PLUGIN_DIR . 'assets/images/flags/' );
@@ -209,6 +210,22 @@ function ctd_get_status_badge_html( $status ) {
 		esc_attr( $status ),
 		esc_html( $statuses[ $status ] )
 	);
+}
+
+/**
+ * @param WP_Term|int $category Category term or term ID.
+ * @return bool
+ */
+function ctd_category_has_protected_hint( $category ) {
+	if ( is_numeric( $category ) ) {
+		$category = get_term( absint( $category ), CTD_TAXONOMY );
+	}
+
+	if ( ! ( $category instanceof WP_Term ) || is_wp_error( $category ) ) {
+		return false;
+	}
+
+	return (bool) get_term_meta( $category->term_id, CTD_CATEGORY_PROTECTED_HINT_META, true );
 }
 
 /**

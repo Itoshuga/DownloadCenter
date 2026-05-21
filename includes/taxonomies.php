@@ -40,6 +40,19 @@ function ctd_register_category_relationship_meta() {
 
 	register_term_meta( CTD_TAXONOMY, CTD_CATEGORY_RANGE_META, $args );
 	register_term_meta( CTD_TAXONOMY, CTD_CATEGORY_LANGUAGE_META, $args );
+	register_term_meta(
+		CTD_TAXONOMY,
+		CTD_CATEGORY_PROTECTED_HINT_META,
+		array(
+			'type'              => 'boolean',
+			'single'            => true,
+			'sanitize_callback' => 'rest_sanitize_boolean',
+			'auth_callback'     => static function () {
+				return current_user_can( 'manage_options' );
+			},
+			'show_in_rest'      => false,
+		)
+	);
 }
 
 function ctd_register_category_taxonomy() {
@@ -205,9 +218,20 @@ function ctd_seed_default_languages( $force = false ) {
 
 function ctd_render_category_relationship_add_fields() {
 	?>
+	<div class="form-field term-ctd-category-protected-wrap">
+		<label><?php esc_html_e( 'Protection', 'centre-telechargement' ); ?></label>
+		<?php wp_nonce_field( 'ctd_save_category_relationships', 'ctd_category_relationships_nonce' ); ?>
+		<label class="ctd-category-protected-option">
+			<input type="checkbox" name="ctd_category_protected_hint" value="1" />
+			<span><?php esc_html_e( 'Indiquer que cette catégorie contient des documents protégés', 'centre-telechargement' ); ?></span>
+		</label>
+		<p>
+			<?php esc_html_e( 'Information visuelle uniquement, sans impact sur les accès.', 'centre-telechargement' ); ?>
+		</p>
+	</div>
+
 	<div class="form-field term-ctd-category-relations-wrap">
 		<label><?php esc_html_e( 'Filtres liés', 'centre-telechargement' ); ?></label>
-		<?php wp_nonce_field( 'ctd_save_category_relationships', 'ctd_category_relationships_nonce' ); ?>
 		<?php ctd_render_category_relationship_controls(); ?>
 		<p>
 			<?php esc_html_e( 'Choisissez les gammes et langues disponibles lorsque cette catégorie est sélectionnée.', 'centre-telechargement' ); ?>
@@ -222,12 +246,32 @@ function ctd_render_category_relationship_add_fields() {
  */
 function ctd_render_category_relationship_edit_fields( $term ) {
 	?>
+	<tr class="form-field term-ctd-category-protected-wrap">
+		<th scope="row">
+			<?php esc_html_e( 'Protection', 'centre-telechargement' ); ?>
+		</th>
+		<td>
+			<?php wp_nonce_field( 'ctd_save_category_relationships', 'ctd_category_relationships_nonce' ); ?>
+			<label class="ctd-category-protected-option">
+				<input
+					type="checkbox"
+					name="ctd_category_protected_hint"
+					value="1"
+					<?php checked( ctd_category_has_protected_hint( $term ) ); ?>
+				/>
+				<span><?php esc_html_e( 'Indiquer que cette catégorie contient des documents protégés', 'centre-telechargement' ); ?></span>
+			</label>
+			<p class="description">
+				<?php esc_html_e( 'Information visuelle uniquement, sans impact sur les accès.', 'centre-telechargement' ); ?>
+			</p>
+		</td>
+	</tr>
+
 	<tr class="form-field term-ctd-category-relations-wrap">
 		<th scope="row">
 			<?php esc_html_e( 'Filtres liés', 'centre-telechargement' ); ?>
 		</th>
 		<td>
-			<?php wp_nonce_field( 'ctd_save_category_relationships', 'ctd_category_relationships_nonce' ); ?>
 			<?php
 			ctd_render_category_relationship_controls(
 				ctd_get_category_linked_range_ids( $term ),
@@ -341,9 +385,16 @@ function ctd_save_category_relationship_term_meta( $term_id ) {
 	$language_ids = isset( $_POST['ctd_category_language_ids'] )
 		? ctd_sanitize_term_id_list( wp_unslash( $_POST['ctd_category_language_ids'] ) )
 		: array();
+	$protected_hint = isset( $_POST['ctd_category_protected_hint'] ) ? 1 : 0;
 
 	ctd_save_category_relationship_ids( $term_id, CTD_CATEGORY_RANGE_META, $range_ids, CTD_RANGE_TAXONOMY );
 	ctd_save_category_relationship_ids( $term_id, CTD_CATEGORY_LANGUAGE_META, $language_ids, CTD_LANGUAGE_TAXONOMY );
+
+	if ( $protected_hint ) {
+		update_term_meta( $term_id, CTD_CATEGORY_PROTECTED_HINT_META, 1 );
+	} else {
+		delete_term_meta( $term_id, CTD_CATEGORY_PROTECTED_HINT_META );
+	}
 }
 
 /**
@@ -388,6 +439,7 @@ function ctd_filter_category_term_columns( $columns ) {
 		$new_columns[ $column_key ] = $column_label;
 
 		if ( 'name' === $column_key ) {
+			$new_columns['ctd_protected_hint'] = __( 'Protection', 'centre-telechargement' );
 			$new_columns['ctd_ranges']    = __( 'Gammes liées', 'centre-telechargement' );
 			$new_columns['ctd_languages'] = __( 'Langues liées', 'centre-telechargement' );
 		}
@@ -403,6 +455,10 @@ function ctd_filter_category_term_columns( $columns ) {
  * @return string
  */
 function ctd_render_category_term_column( $content, $column_name, $term_id ) {
+	if ( 'ctd_protected_hint' === $column_name ) {
+		return ctd_get_category_protected_hint_column_html( $term_id );
+	}
+
 	if ( 'ctd_ranges' === $column_name ) {
 		return ctd_get_linked_terms_column_html( $term_id, CTD_RANGE_TAXONOMY );
 	}
@@ -412,6 +468,18 @@ function ctd_render_category_term_column( $content, $column_name, $term_id ) {
 	}
 
 	return $content;
+}
+
+/**
+ * @param int $term_id Category term ID.
+ * @return string
+ */
+function ctd_get_category_protected_hint_column_html( $term_id ) {
+	if ( ctd_category_has_protected_hint( $term_id ) ) {
+		return '<span class="ctd-category-protection-badge ctd-category-protection-yes">' . esc_html__( 'Protégée', 'centre-telechargement' ) . '</span>';
+	}
+
+	return '<span class="ctd-category-protection-badge ctd-category-protection-no">' . esc_html__( 'Non Protégé', 'centre-telechargement' ) . '</span>';
 }
 
 /**
@@ -427,6 +495,8 @@ function ctd_get_linked_terms_column_html( $term_id, $taxonomy ) {
 	}
 
 	$items = array();
+	$total = count( $terms );
+	$terms = array_slice( $terms, 0, 2 );
 
 	foreach ( $terms as $term ) {
 		if ( CTD_LANGUAGE_TAXONOMY === $taxonomy ) {
@@ -437,6 +507,13 @@ function ctd_get_linked_terms_column_html( $term_id, $taxonomy ) {
 		$items[] = sprintf(
 			'<span class="ctd-category-chip">%s</span>',
 			esc_html( $term->name )
+		);
+	}
+
+	if ( $total > 2 ) {
+		$items[] = sprintf(
+			'<span class="ctd-more-chip">+%d</span>',
+			$total - 2
 		);
 	}
 
