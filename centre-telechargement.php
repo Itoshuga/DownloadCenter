@@ -26,6 +26,8 @@ define( 'CTD_LANGUAGE_FLAGS_DIR', CTD_PLUGIN_DIR . 'assets/images/flags/' );
 define( 'CTD_LANGUAGE_FLAGS_URL', CTD_PLUGIN_URL . 'assets/images/flags/' );
 define( 'CTD_META_FILE_ID', '_ctd_pdf_file_id' );
 define( 'CTD_META_STATUS', '_ctd_document_status' );
+define( 'CTD_META_ACCESS_MODE', '_ctd_document_access_mode' );
+define( 'CTD_META_ALLOWED_USERS', '_ctd_document_allowed_users' );
 
 /**
  * Capabilities mapped to administrators through manage_options.
@@ -93,6 +95,103 @@ function ctd_get_document_status( $post_id ) {
 	$status = get_post_meta( $post_id, CTD_META_STATUS, true );
 
 	return ctd_normalize_document_status( $status, 'public' );
+}
+
+/**
+ * @return array<string, string>
+ */
+function ctd_get_document_access_modes() {
+	return array(
+		'all'      => __( 'Tous les utilisateurs', 'centre-telechargement' ),
+		'selected' => __( 'Utilisateurs sélectionnés', 'centre-telechargement' ),
+	);
+}
+
+/**
+ * @param mixed  $mode Access mode candidate.
+ * @param string $fallback Fallback mode.
+ * @return string
+ */
+function ctd_normalize_document_access_mode( $mode, $fallback = 'all' ) {
+	$modes = ctd_get_document_access_modes();
+	$mode  = sanitize_key( (string) $mode );
+
+	if ( isset( $modes[ $mode ] ) ) {
+		return $mode;
+	}
+
+	return $fallback;
+}
+
+/**
+ * @param mixed $mode Access mode candidate.
+ * @return string
+ */
+function ctd_sanitize_document_access_mode( $mode ) {
+	return ctd_normalize_document_access_mode( $mode, 'all' );
+}
+
+/**
+ * @param int $post_id Document post ID.
+ * @return string
+ */
+function ctd_get_document_access_mode( $post_id ) {
+	$mode = get_post_meta( $post_id, CTD_META_ACCESS_MODE, true );
+
+	return ctd_normalize_document_access_mode( $mode, 'all' );
+}
+
+/**
+ * @param mixed $user_ids User IDs candidate.
+ * @return array<int>
+ */
+function ctd_sanitize_document_allowed_user_ids( $user_ids ) {
+	if ( ! is_array( $user_ids ) ) {
+		$user_ids = array( $user_ids );
+	}
+
+	$user_ids = array_map( 'absint', $user_ids );
+	$user_ids = array_filter( $user_ids );
+	$user_ids = array_unique( $user_ids );
+
+	return array_values( $user_ids );
+}
+
+/**
+ * @param int $post_id Document post ID.
+ * @return array<int>
+ */
+function ctd_get_document_allowed_user_ids( $post_id ) {
+	$user_ids = get_post_meta( $post_id, CTD_META_ALLOWED_USERS, true );
+
+	return ctd_sanitize_document_allowed_user_ids( $user_ids );
+}
+
+/**
+ * @param int $post_id Document post ID.
+ * @param int $user_id User ID. Defaults to current user.
+ * @return bool
+ */
+function ctd_user_can_access_document( $post_id, $user_id = 0 ) {
+	if ( 'public' === ctd_get_document_status( $post_id ) ) {
+		return true;
+	}
+
+	$user_id = $user_id ? absint( $user_id ) : get_current_user_id();
+
+	if ( ! $user_id ) {
+		return false;
+	}
+
+	if ( user_can( $user_id, 'manage_options' ) ) {
+		return true;
+	}
+
+	if ( 'all' === ctd_get_document_access_mode( $post_id ) ) {
+		return true;
+	}
+
+	return in_array( $user_id, ctd_get_document_allowed_user_ids( $post_id ), true );
 }
 
 /**
@@ -393,6 +492,24 @@ function ctd_get_media_script() {
 		$('.ctd-file-preview').addClass('has-file');
 	}
 
+	function refreshChoiceCards() {
+		$('.ctd-access-mode-option').removeClass('is-selected');
+		$('.ctd-status-option').removeClass('is-selected');
+		$('input[name="ctd_document_access_mode"]:checked').closest('.ctd-access-mode-option').addClass('is-selected');
+		$('input[name="ctd_document_status"]:checked').closest('.ctd-status-option').addClass('is-selected');
+	}
+
+	function filterAccessUsers() {
+		var query = String($('[data-ctd-user-search]').val() || '').toLowerCase();
+
+		$('[data-ctd-user-row]').each(function() {
+			var row = $(this);
+			var label = String(row.data('user-search') || '').toLowerCase();
+
+			row.toggle(!query || label.indexOf(query) !== -1);
+		});
+	}
+
 	$(document).on('click', '.ctd-select-file', function(event) {
 		event.preventDefault();
 
@@ -435,6 +552,14 @@ function ctd_get_media_script() {
 		$('#ctd-remove-pdf').addClass('hidden');
 		$('#ctd-pdf-placeholder').removeClass('hidden');
 		$('.ctd-file-preview').removeClass('has-file');
+	});
+
+	$(document).on('change', 'input[name="ctd_document_status"], input[name="ctd_document_access_mode"]', refreshChoiceCards);
+	$(document).on('input', '[data-ctd-user-search]', filterAccessUsers);
+
+	$(function() {
+		refreshChoiceCards();
+		filterAccessUsers();
 	});
 })(jQuery);
 JS;

@@ -67,7 +67,7 @@ function ctd_render_document_column( $column, $post_id ) {
 function ctd_render_document_file_column( $post_id ) {
 	$attachment_id = absint( get_post_meta( $post_id, CTD_META_FILE_ID, true ) );
 
-	if ( ! $attachment_id ) {
+	if ( ! $attachment_id || ! ctd_attachment_is_pdf( $attachment_id ) ) {
 		echo '<span class="ctd-empty-value">—</span>';
 		return;
 	}
