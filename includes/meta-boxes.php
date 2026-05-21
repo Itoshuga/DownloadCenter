@@ -316,12 +316,43 @@ function ctd_render_document_access_meta_box( $post ) {
 }
 
 /**
+ * @param array<int, array{x:float|int,y:float|int}> $points Chart points.
+ * @return string
+ */
+function ctd_get_smooth_chart_path( $points ) {
+	if ( empty( $points ) ) {
+		return '';
+	}
+
+	$path = 'M ' . $points[0]['x'] . ' ' . $points[0]['y'];
+
+	for ( $index = 1; $index < count( $points ); $index++ ) {
+		$previous = $points[ $index - 1 ];
+		$current  = $points[ $index ];
+		$delta_x  = ( $current['x'] - $previous['x'] ) / 2;
+
+		$path .= sprintf(
+			' C %1$s %2$s, %3$s %4$s, %5$s %6$s',
+			round( $previous['x'] + $delta_x, 2 ),
+			$previous['y'],
+			round( $current['x'] - $delta_x, 2 ),
+			$current['y'],
+			$current['x'],
+			$current['y']
+		);
+	}
+
+	return $path;
+}
+
+/**
  * @param WP_Post $post Current post.
  * @return void
  */
 function ctd_render_document_analytics_meta_box( $post ) {
 	$open_counts     = ctd_get_document_daily_event_counts( $post->ID, 14, 'open' );
 	$download_counts = ctd_get_document_daily_event_counts( $post->ID, 14, 'download' );
+	$recent_events   = ctd_get_document_recent_events( $post->ID, 30 );
 	$width           = 760;
 	$height          = 300;
 	$padding_top     = 22;
@@ -364,24 +395,8 @@ function ctd_render_document_analytics_meta_box( $post ) {
 		);
 	}
 
-	$open_polyline     = implode(
-		' ',
-		array_map(
-			static function ( $point ) {
-				return $point['x'] . ',' . $point['y'];
-			},
-			$open_points
-		)
-	);
-	$download_polyline = implode(
-		' ',
-		array_map(
-			static function ( $point ) {
-				return $point['x'] . ',' . $point['y'];
-			},
-			$download_points
-		)
-	);
+	$open_path         = ctd_get_smooth_chart_path( $open_points );
+	$download_path     = ctd_get_smooth_chart_path( $download_points );
 	$y_ticks           = array_unique(
 		array(
 			0,
@@ -428,8 +443,8 @@ function ctd_render_document_analytics_meta_box( $post ) {
 							<text class="ctd-line-chart-date" x="<?php echo esc_attr( $point['x'] ); ?>" y="<?php echo esc_attr( $padding_top + $chart_height + 22 ); ?>" text-anchor="middle"><?php echo esc_html( $point['label'] ); ?></text>
 						<?php endforeach; ?>
 
-						<polyline class="ctd-line-chart-line ctd-line-chart-line-download" points="<?php echo esc_attr( $download_polyline ); ?>" />
-						<polyline class="ctd-line-chart-line ctd-line-chart-line-open" points="<?php echo esc_attr( $open_polyline ); ?>" />
+						<path class="ctd-line-chart-line ctd-line-chart-line-download" d="<?php echo esc_attr( $download_path ); ?>" />
+						<path class="ctd-line-chart-line ctd-line-chart-line-open" d="<?php echo esc_attr( $open_path ); ?>" />
 
 						<?php foreach ( $download_points as $point ) : ?>
 							<circle class="ctd-line-chart-point ctd-line-chart-point-download" cx="<?php echo esc_attr( $point['x'] ); ?>" cy="<?php echo esc_attr( $point['y'] ); ?>" r="3.5">
@@ -459,6 +474,43 @@ function ctd_render_document_analytics_meta_box( $post ) {
 					</div>
 				<?php endif; ?>
 			<?php endif; ?>
+
+			<div class="ctd-analytics-history">
+				<span class="ctd-field-label">
+					<?php esc_html_e( 'Historique des accès', 'centre-telechargement' ); ?>
+				</span>
+
+				<?php if ( empty( $recent_events ) ) : ?>
+					<div class="ctd-analytics-empty">
+						<?php esc_html_e( 'Aucun historique disponible pour ce document.', 'centre-telechargement' ); ?>
+					</div>
+				<?php else : ?>
+					<div class="ctd-analytics-history-table-wrap">
+						<table class="ctd-analytics-history-table">
+							<thead>
+								<tr>
+									<th scope="col"><?php esc_html_e( 'Utilisateur', 'centre-telechargement' ); ?></th>
+									<th scope="col"><?php esc_html_e( 'Action', 'centre-telechargement' ); ?></th>
+									<th scope="col"><?php esc_html_e( 'Date', 'centre-telechargement' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $recent_events as $event ) : ?>
+									<tr>
+										<td><?php echo esc_html( $event['username'] ); ?></td>
+										<td>
+											<span class="ctd-event-badge ctd-event-<?php echo esc_attr( $event['event_type'] ); ?>">
+												<?php echo esc_html( $event['event_label'] ); ?>
+											</span>
+										</td>
+										<td><?php echo esc_html( $event['date_label'] ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
+			</div>
 		</div>
 	</div>
 	<?php

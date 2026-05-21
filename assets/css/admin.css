@@ -787,6 +787,68 @@ body.taxonomy-download_language,
 	fill: #137a3b;
 }
 
+.ctd-analytics-history {
+	display: grid;
+	gap: 10px;
+	margin-top: 4px;
+}
+
+.ctd-analytics-history-table-wrap {
+	background: #fff;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	overflow-x: auto;
+}
+
+.ctd-analytics-history-table {
+	border-collapse: collapse;
+	min-width: 560px;
+	width: 100%;
+}
+
+.ctd-analytics-history-table th,
+.ctd-analytics-history-table td {
+	border-bottom: 1px solid #edf1f7;
+	padding: 10px 12px;
+	text-align: left;
+	vertical-align: middle;
+}
+
+.ctd-analytics-history-table th {
+	background: #f9fafc;
+	color: #4a5568;
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.ctd-analytics-history-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.ctd-event-badge {
+	border: 1px solid transparent;
+	border-radius: 999px;
+	display: inline-flex;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1.4;
+	padding: 3px 9px;
+	white-space: nowrap;
+}
+
+.ctd-event-open {
+	background: #eef4ff;
+	border-color: #c9d9ff;
+	color: #1d4ed8;
+}
+
+.ctd-event-download {
+	background: #e8f7ee;
+	border-color: #bce8ca;
+	color: #137a3b;
+}
+
 @media screen and (min-width: 851px) {
 	.post-type-download_document #poststuff {
 		max-width: none;

@@ -172,3 +172,58 @@ function ctd_get_document_daily_event_counts( $document_id, $days = 14, $event_t
 
 	return $items;
 }
+
+/**
+ * @param int $document_id Document post ID.
+ * @param int $limit Number of events to return.
+ * @return array<int, array{user_id:int,username:string,event_type:string,event_label:string,occurred_at:string,date_label:string}>
+ */
+function ctd_get_document_recent_events( $document_id, $limit = 30 ) {
+	global $wpdb;
+
+	ctd_maybe_create_analytics_table();
+
+	$document_id  = absint( $document_id );
+	$limit        = max( 1, min( 100, absint( $limit ) ) );
+	$table_name   = ctd_get_analytics_table_name();
+	$event_labels = array(
+		'open'     => __( 'Ouvert', 'centre-telechargement' ),
+		'download' => __( 'Téléchargé', 'centre-telechargement' ),
+	);
+	$rows         = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT user_id, event_type, occurred_at
+			FROM {$table_name}
+			WHERE document_id = %d
+			ORDER BY occurred_at DESC, id DESC
+			LIMIT %d",
+			$document_id,
+			$limit
+		),
+		ARRAY_A
+	);
+
+	if ( empty( $rows ) ) {
+		return array();
+	}
+
+	$events = array();
+
+	foreach ( $rows as $row ) {
+		$user_id    = isset( $row['user_id'] ) ? absint( $row['user_id'] ) : 0;
+		$user       = $user_id ? get_userdata( $user_id ) : false;
+		$event_type = ctd_normalize_document_event_type( isset( $row['event_type'] ) ? $row['event_type'] : 'open' );
+		$date       = isset( $row['occurred_at'] ) ? (string) $row['occurred_at'] : '';
+
+		$events[] = array(
+			'user_id'     => $user_id,
+			'username'    => $user ? $user->user_login : ( $user_id ? __( 'Utilisateur supprimé', 'centre-telechargement' ) : __( 'Visiteur', 'centre-telechargement' ) ),
+			'event_type'  => $event_type,
+			'event_label' => $event_labels[ $event_type ],
+			'occurred_at' => $date,
+			'date_label'  => $date ? mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $date ) : '',
+		);
+	}
+
+	return $events;
+}
