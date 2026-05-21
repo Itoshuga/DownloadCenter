@@ -126,7 +126,7 @@ function ctd_render_frontend_login_prompt( $settings ) {
 					<?php esc_html_e( 'Accès aux documents', 'centre-telechargement' ); ?>
 				</h2>
 				<button type="button" class="ctd-front-modal-close" aria-label="<?php esc_attr_e( 'Fermer', 'centre-telechargement' ); ?>" data-ctd-modal-close>
-					<span aria-hidden="true">x</span>
+					<i class="fa-solid fa-xmark" aria-hidden="true"></i>
 				</button>
 			</div>
 
