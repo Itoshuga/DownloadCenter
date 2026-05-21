@@ -627,7 +627,7 @@ function ctd_render_admin_menu_logo_styles() {
 	<style>
 		#adminmenu #menu-posts-download_document .wp-menu-image img {
 			box-sizing: border-box;
-			height: 22px;
+			height: 28px;
 			object-fit: contain;
 			opacity: 1;
 			padding: 6px 0 0;
