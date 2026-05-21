@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name: Centre de téléchargement
+ * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.1.0
+ * Version: 0.4.2
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
