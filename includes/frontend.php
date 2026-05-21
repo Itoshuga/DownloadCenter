@@ -240,11 +240,21 @@ function ctd_get_frontend_filter_terms( $taxonomy ) {
 	}
 
 	return array_map(
-		static function ( $term ) {
-			return array(
+		static function ( $term ) use ( $taxonomy ) {
+			$item = array(
 				'name' => $term->name,
 				'slug' => $term->slug,
 			);
+
+			if ( CTD_TAXONOMY === $taxonomy ) {
+				$item['protected'] = ctd_category_has_protected_hint( $term );
+			}
+
+			if ( CTD_LANGUAGE_TAXONOMY === $taxonomy ) {
+				$item['flag_url'] = ctd_get_language_flag_url( $term );
+			}
+
+			return $item;
 		},
 		$terms
 	);
@@ -258,19 +268,96 @@ function ctd_get_frontend_filter_terms( $taxonomy ) {
  * @return void
  */
 function ctd_render_frontend_filter_select( $filter_key, $label, $empty_label, $terms ) {
-	$field_id = 'ctd-front-filter-' . sanitize_html_class( $filter_key ) . '-' . wp_rand( 1000, 9999 );
+	$field_id  = 'ctd-front-filter-' . sanitize_html_class( $filter_key ) . '-' . wp_rand( 1000, 9999 );
+	$label_id  = $field_id . '-label';
+	$button_id = $field_id . '-button';
+	$menu_id   = $field_id . '-menu';
 	?>
-	<label class="ctd-front-filter" for="<?php echo esc_attr( $field_id ); ?>">
-		<span><?php echo esc_html( $label ); ?></span>
-		<select id="<?php echo esc_attr( $field_id ); ?>" data-ctd-filter="<?php echo esc_attr( $filter_key ); ?>">
-			<option value=""><?php echo esc_html( $empty_label ); ?></option>
+	<div class="ctd-front-filter ctd-front-filter-<?php echo esc_attr( sanitize_html_class( $filter_key ) ); ?>" data-ctd-filter-control>
+		<span class="ctd-front-filter-label" id="<?php echo esc_attr( $label_id ); ?>">
+			<?php echo esc_html( $label ); ?>
+		</span>
+		<input type="hidden" id="<?php echo esc_attr( $field_id ); ?>" value="" data-ctd-filter="<?php echo esc_attr( $filter_key ); ?>" />
+		<button
+			type="button"
+			id="<?php echo esc_attr( $button_id ); ?>"
+			class="ctd-front-filter-button"
+			aria-haspopup="listbox"
+			aria-expanded="false"
+			aria-controls="<?php echo esc_attr( $menu_id ); ?>"
+			aria-labelledby="<?php echo esc_attr( $label_id . ' ' . $button_id ); ?>"
+			data-ctd-filter-button
+		>
+			<span class="ctd-front-filter-current" data-ctd-filter-current>
+				<?php ctd_render_frontend_filter_option_content( $filter_key, array( 'name' => $empty_label ) ); ?>
+			</span>
+		</button>
+		<div
+			id="<?php echo esc_attr( $menu_id ); ?>"
+			class="ctd-front-filter-menu"
+			role="listbox"
+			aria-labelledby="<?php echo esc_attr( $label_id ); ?>"
+			data-ctd-filter-menu
+		>
+			<button
+				type="button"
+				class="ctd-front-filter-option is-selected"
+				role="option"
+				aria-selected="true"
+				data-ctd-filter-option
+				data-value=""
+			>
+				<span data-ctd-filter-option-content>
+					<?php ctd_render_frontend_filter_option_content( $filter_key, array( 'name' => $empty_label ) ); ?>
+				</span>
+			</button>
 			<?php foreach ( $terms as $term ) : ?>
-				<option value="<?php echo esc_attr( $term['slug'] ); ?>">
-					<?php echo esc_html( $term['name'] ); ?>
-				</option>
+				<button
+					type="button"
+					class="ctd-front-filter-option"
+					role="option"
+					aria-selected="false"
+					data-ctd-filter-option
+					data-value="<?php echo esc_attr( $term['slug'] ); ?>"
+				>
+					<span data-ctd-filter-option-content>
+						<?php ctd_render_frontend_filter_option_content( $filter_key, $term ); ?>
+					</span>
+				</button>
 			<?php endforeach; ?>
-		</select>
-	</label>
+		</div>
+	</div>
+	<?php
+}
+
+/**
+ * @param string               $filter_key Filter key.
+ * @param array<string, mixed> $term Term data.
+ * @return void
+ */
+function ctd_render_frontend_filter_option_content( $filter_key, $term ) {
+	$name = isset( $term['name'] ) ? (string) $term['name'] : '';
+
+	if ( 'category' === $filter_key && array_key_exists( 'protected', $term ) ) {
+		$is_protected = ! empty( $term['protected'] );
+		$icon_class   = $is_protected ? 'fa-lock' : 'fa-lock-open';
+		$label        = $is_protected
+			? __( 'Catégorie protégée', 'centre-telechargement' )
+			: __( 'Catégorie non protégée', 'centre-telechargement' );
+		?>
+		<span class="ctd-front-filter-icon ctd-front-filter-lock<?php echo $is_protected ? ' is-locked' : ' is-unlocked'; ?>" aria-label="<?php echo esc_attr( $label ); ?>">
+			<i class="fa-solid <?php echo esc_attr( $icon_class ); ?>" aria-hidden="true"></i>
+		</span>
+		<?php
+	}
+
+	if ( 'language' === $filter_key && ! empty( $term['flag_url'] ) ) {
+		?>
+		<img class="ctd-front-filter-flag" src="<?php echo esc_url( $term['flag_url'] ); ?>" alt="" loading="lazy" />
+		<?php
+	}
+	?>
+	<span class="ctd-front-filter-option-text"><?php echo esc_html( $name ); ?></span>
 	<?php
 }
 

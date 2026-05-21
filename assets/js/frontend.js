@@ -44,11 +44,81 @@
 		return field ? field.value : '';
 	}
 
-	function initLibrary(library) {
-		Array.prototype.forEach.call(library.querySelectorAll('[data-ctd-filter]'), function(field) {
-			field.addEventListener('change', function() {
-				refreshLibrary(library);
+	function closeFilter(control) {
+		var button = control.querySelector('[data-ctd-filter-button]');
+
+		control.classList.remove('is-open');
+
+		if (button) {
+			button.setAttribute('aria-expanded', 'false');
+		}
+	}
+
+	function closeFilters(library, exceptControl) {
+		Array.prototype.forEach.call(library.querySelectorAll('[data-ctd-filter-control]'), function(control) {
+			if (control !== exceptControl) {
+				closeFilter(control);
+			}
+		});
+	}
+
+	function toggleFilter(library, control) {
+		var button = control.querySelector('[data-ctd-filter-button]');
+		var isOpen = control.classList.contains('is-open');
+
+		closeFilters(library, control);
+		control.classList.toggle('is-open', !isOpen);
+
+		if (button) {
+			button.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+		}
+	}
+
+	function selectFilterOption(library, control, option) {
+		var field = control.querySelector('[data-ctd-filter]');
+		var current = control.querySelector('[data-ctd-filter-current]');
+		var content = option.querySelector('[data-ctd-filter-option-content]');
+
+		if (field) {
+			field.value = option.getAttribute('data-value') || '';
+		}
+
+		if (current && content) {
+			current.innerHTML = content.innerHTML;
+		}
+
+		Array.prototype.forEach.call(control.querySelectorAll('[data-ctd-filter-option]'), function(item) {
+			var isSelected = item === option;
+
+			item.classList.toggle('is-selected', isSelected);
+			item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+		});
+
+		closeFilter(control);
+		refreshLibrary(library);
+	}
+
+	function initFilterControl(library, control) {
+		var button = control.querySelector('[data-ctd-filter-button]');
+
+		if (button) {
+			button.addEventListener('click', function(event) {
+				event.preventDefault();
+				toggleFilter(library, control);
 			});
+		}
+
+		Array.prototype.forEach.call(control.querySelectorAll('[data-ctd-filter-option]'), function(option) {
+			option.addEventListener('click', function(event) {
+				event.preventDefault();
+				selectFilterOption(library, control, option);
+			});
+		});
+	}
+
+	function initLibrary(library) {
+		Array.prototype.forEach.call(library.querySelectorAll('[data-ctd-filter-control]'), function(control) {
+			initFilterControl(library, control);
 		});
 
 		refreshLibrary(library);
@@ -56,5 +126,30 @@
 
 	document.addEventListener('DOMContentLoaded', function() {
 		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-library]'), initLibrary);
+	});
+
+	document.addEventListener('click', function(event) {
+		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-library]'), function(library) {
+			if (!library.contains(event.target)) {
+				closeFilters(library, null);
+				return;
+			}
+
+			Array.prototype.forEach.call(library.querySelectorAll('[data-ctd-filter-control]'), function(control) {
+				if (!control.contains(event.target)) {
+					closeFilter(control);
+				}
+			});
+		});
+	});
+
+	document.addEventListener('keydown', function(event) {
+		if (event.key !== 'Escape') {
+			return;
+		}
+
+		Array.prototype.forEach.call(document.querySelectorAll('[data-ctd-library]'), function(library) {
+			closeFilters(library, null);
+		});
 	});
 })();
