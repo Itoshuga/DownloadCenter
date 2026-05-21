@@ -524,6 +524,7 @@ require_once CTD_PLUGIN_DIR . 'includes/post-types.php';
 require_once CTD_PLUGIN_DIR . 'includes/taxonomies.php';
 require_once CTD_PLUGIN_DIR . 'includes/analytics.php';
 require_once CTD_PLUGIN_DIR . 'includes/meta-boxes.php';
+require_once CTD_PLUGIN_DIR . 'includes/frontend.php';
 require_once CTD_PLUGIN_DIR . 'includes/admin-columns.php';
 
 register_activation_hook( __FILE__, 'ctd_activate' );
