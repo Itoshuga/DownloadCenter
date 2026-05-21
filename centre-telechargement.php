@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.4.2
+ * Version: 0.4.3
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.1.0' );
+define( 'CTD_VERSION', '0.4.3' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CTD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -31,6 +31,7 @@ define( 'CTD_META_FILE_ID', '_ctd_pdf_file_id' );
 define( 'CTD_META_STATUS', '_ctd_document_status' );
 define( 'CTD_META_ACCESS_MODE', '_ctd_document_access_mode' );
 define( 'CTD_META_ALLOWED_USERS', '_ctd_document_allowed_users' );
+define( 'CTD_FRONTEND_SETTINGS_OPTION', 'ctd_frontend_settings' );
 
 /**
  * Capabilities mapped to administrators through manage_options.
@@ -580,6 +581,7 @@ require_once CTD_PLUGIN_DIR . 'includes/post-types.php';
 require_once CTD_PLUGIN_DIR . 'includes/taxonomies.php';
 require_once CTD_PLUGIN_DIR . 'includes/analytics.php';
 require_once CTD_PLUGIN_DIR . 'includes/meta-boxes.php';
+require_once CTD_PLUGIN_DIR . 'includes/settings.php';
 require_once CTD_PLUGIN_DIR . 'includes/frontend.php';
 require_once CTD_PLUGIN_DIR . 'includes/admin-columns.php';
 

@@ -96,6 +96,7 @@ function ctd_enqueue_frontend_base_assets() {
 		array(),
 		CTD_VERSION
 	);
+	wp_add_inline_style( 'ctd-frontend', ctd_get_frontend_settings_css() );
 
 	wp_enqueue_script(
 		'ctd-frontend',

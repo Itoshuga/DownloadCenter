@@ -1,6 +1,23 @@
 .ctd-front-library {
+	--ctd-color-primary: #10233f;
+	--ctd-color-accent: #11a9cf;
+	--ctd-color-accent-hover: #0b88ad;
+	--ctd-color-border: #d7e4ec;
+	--ctd-color-border-soft: #e0ebf1;
+	--ctd-color-surface: #fff;
+	--ctd-color-muted-surface: #f8fbfd;
+	--ctd-color-filter-hover: #edf8fb;
+	--ctd-color-empty-text: #5b6d7d;
+	--ctd-color-accent-focus: rgba(17, 169, 207, 0.16);
+	--ctd-color-accent-shadow: rgba(17, 169, 207, 0.25);
+	--ctd-filter-category-width: 1fr;
+	--ctd-filter-range-width: 1fr;
+	--ctd-filter-language-width: 1fr;
+	--ctd-filter-gap: 14px;
+	--ctd-document-min-width: 150px;
+	--ctd-document-gap: 26px;
 	box-sizing: border-box;
-	color: #10233f;
+	color: var(--ctd-color-primary);
 	font-family: inherit;
 	max-width: 100%;
 	width: 100%;
@@ -14,8 +31,11 @@
 
 .ctd-front-filters {
 	display: grid;
-	gap: 14px;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--ctd-filter-gap);
+	grid-template-columns:
+		var(--ctd-filter-category-width)
+		var(--ctd-filter-range-width)
+		var(--ctd-filter-language-width);
 	margin-bottom: 28px;
 	max-width: 100%;
 }
@@ -28,7 +48,7 @@
 }
 
 .ctd-front-filter-label {
-	color: #10233f;
+	color: var(--ctd-color-primary);
 	font-size: 12px;
 	font-weight: 800;
 	letter-spacing: 0.04em;
@@ -39,13 +59,13 @@
 .ctd-front-library .ctd-front-filter-button {
 	appearance: none;
 	background:
-		linear-gradient(45deg, transparent 50%, #11a9cf 50%) calc(100% - 18px) 50% / 7px 7px no-repeat,
-		linear-gradient(135deg, #11a9cf 50%, transparent 50%) calc(100% - 13px) 50% / 7px 7px no-repeat,
-		#fff !important;
-	border: 1px solid #d7e4ec !important;
+		linear-gradient(45deg, transparent 50%, var(--ctd-color-accent) 50%) calc(100% - 18px) 50% / 7px 7px no-repeat,
+		linear-gradient(135deg, var(--ctd-color-accent) 50%, transparent 50%) calc(100% - 13px) 50% / 7px 7px no-repeat,
+		var(--ctd-color-surface) !important;
+	border: 1px solid var(--ctd-color-border) !important;
 	border-radius: 6px !important;
 	box-shadow: 0 8px 22px rgba(16, 35, 63, 0.05) !important;
-	color: #10233f !important;
+	color: var(--ctd-color-primary) !important;
 	font-family: inherit !important;
 	font-size: 14px !important;
 	font-style: normal !important;
@@ -76,12 +96,12 @@
 .ctd-front-library .ctd-front-filter-button:focus,
 .ctd-front-library .ctd-front-filter-button:hover {
 	background:
-		linear-gradient(45deg, transparent 50%, #11a9cf 50%) calc(100% - 18px) 50% / 7px 7px no-repeat,
-		linear-gradient(135deg, #11a9cf 50%, transparent 50%) calc(100% - 13px) 50% / 7px 7px no-repeat,
-		#fff !important;
-	border-color: #11a9cf !important;
-	box-shadow: 0 0 0 3px rgba(17, 169, 207, 0.16) !important;
-	color: #10233f !important;
+		linear-gradient(45deg, transparent 50%, var(--ctd-color-accent) 50%) calc(100% - 18px) 50% / 7px 7px no-repeat,
+		linear-gradient(135deg, var(--ctd-color-accent) 50%, transparent 50%) calc(100% - 13px) 50% / 7px 7px no-repeat,
+		var(--ctd-color-surface) !important;
+	border-color: var(--ctd-color-accent) !important;
+	box-shadow: 0 0 0 3px var(--ctd-color-accent-focus) !important;
+	color: var(--ctd-color-primary) !important;
 	outline: 0 !important;
 }
 
@@ -99,8 +119,8 @@
 }
 
 .ctd-front-library .ctd-front-filter-menu {
-	background: #fff !important;
-	border: 1px solid #d7e4ec;
+	background: var(--ctd-color-surface) !important;
+	border: 1px solid var(--ctd-color-border);
 	border-radius: 6px;
 	box-shadow: 0 18px 38px rgba(16, 35, 63, 0.14);
 	display: none;
@@ -129,7 +149,7 @@
 	border: 0 !important;
 	border-radius: 5px !important;
 	box-shadow: none !important;
-	color: #10233f !important;
+	color: var(--ctd-color-primary) !important;
 	cursor: pointer;
 	display: flex;
 	font-family: inherit !important;
@@ -151,8 +171,8 @@
 .ctd-front-library .ctd-front-filter-option:hover,
 .ctd-front-library .ctd-front-filter-option:focus,
 .ctd-front-library .ctd-front-filter-option.is-selected {
-	background: #edf8fb !important;
-	color: #0b6985 !important;
+	background: var(--ctd-color-filter-hover) !important;
+	color: var(--ctd-color-accent-hover) !important;
 	outline: 0 !important;
 }
 
@@ -217,8 +237,8 @@
 
 .ctd-front-grid {
 	display: grid;
-	gap: 26px;
-	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: var(--ctd-document-gap);
+	grid-template-columns: repeat(auto-fill, minmax(var(--ctd-document-min-width), 1fr));
 }
 
 .ctd-front-document {
@@ -231,8 +251,8 @@
 }
 
 .ctd-front-document-preview {
-	background: #fff;
-	border: 1px solid #e0ebf1;
+	background: var(--ctd-color-surface);
+	border: 1px solid var(--ctd-color-border-soft);
 	border-radius: 8px;
 	box-shadow: 0 10px 28px rgba(16, 35, 63, 0.06);
 	overflow: hidden;
@@ -242,7 +262,7 @@
 
 .ctd-front-document:hover .ctd-front-document-preview,
 .ctd-front-document:focus-within .ctd-front-document-preview {
-	border-color: rgba(17, 169, 207, 0.55);
+	border-color: var(--ctd-color-accent);
 	box-shadow: 0 16px 36px rgba(16, 35, 63, 0.12);
 	transform: translateY(-2px);
 }
@@ -250,7 +270,7 @@
 .ctd-front-document-open {
 	align-items: center;
 	aspect-ratio: 1 / 1.32;
-	background: #f8fbfd;
+	background: var(--ctd-color-muted-surface);
 	display: flex;
 	justify-content: center;
 	text-decoration: none;
@@ -267,7 +287,7 @@
 .ctd-front-pdf-fallback {
 	align-items: center;
 	background: linear-gradient(180deg, #f4f9fc, #eaf3f8);
-	color: #10233f;
+	color: var(--ctd-color-primary);
 	display: flex;
 	font-size: 20px;
 	font-weight: 900;
@@ -277,16 +297,16 @@
 }
 
 .ctd-front-pdf-fallback span {
-	border: 2px solid #11a9cf;
+	border: 2px solid var(--ctd-color-accent);
 	border-radius: 5px;
 	padding: 11px 13px;
 }
 
 .ctd-front-download {
 	align-items: center;
-	background: #11a9cf;
+	background: var(--ctd-color-accent);
 	border-radius: 999px;
-	box-shadow: 0 8px 18px rgba(17, 169, 207, 0.25);
+	box-shadow: 0 8px 18px var(--ctd-color-accent-shadow);
 	color: #fff;
 	display: inline-flex;
 	height: 38px;
@@ -310,7 +330,7 @@
 
 .ctd-front-download:hover,
 .ctd-front-download:focus {
-	background: #0b88ad;
+	background: var(--ctd-color-accent-hover);
 	color: #fff;
 	outline: 0;
 }
@@ -322,7 +342,7 @@
 }
 
 .ctd-front-document-title {
-	color: #10233f;
+	color: var(--ctd-color-primary);
 	display: block;
 	font-size: 14px;
 	font-weight: 800;
@@ -335,15 +355,15 @@
 
 .ctd-front-document-title:hover,
 .ctd-front-document-title:focus {
-	color: #0b88ad;
+	color: var(--ctd-color-accent-hover);
 	outline: 0;
 }
 
 .ctd-front-empty {
-	background: #f8fbfd;
-	border: 1px solid #d7e4ec;
+	background: var(--ctd-color-muted-surface);
+	border: 1px solid var(--ctd-color-border);
 	border-radius: 8px;
-	color: #5b6d7d;
+	color: var(--ctd-color-empty-text);
 	display: none;
 	margin: 20px 0 0;
 	padding: 16px;
