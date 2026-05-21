@@ -230,50 +230,26 @@ function ctd_get_document_file_action_url( $document_id, $event_type ) {
  * @return array{categories:array<int,array<string,string>>,ranges:array<int,array<string,string>>,languages:array<int,array<string,string>>,relationships:array<string,array<string,array<int,string>>>}
  */
 function ctd_get_frontend_library_filters( $documents ) {
-	$categories      = array();
-	$ranges          = array();
-	$languages       = array();
-	$document_groups = array();
+	$category_terms = get_terms(
+		array(
+			'taxonomy'   => CTD_TAXONOMY,
+			'hide_empty' => false,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		)
+	);
+	$category_terms = is_wp_error( $category_terms ) ? array() : $category_terms;
+	$categories     = array();
+	$ranges         = array();
+	$languages      = array();
+	$relationships  = ctd_get_frontend_category_relationships( $category_terms, $ranges, $languages );
 
-	foreach ( $documents as $document ) {
-		foreach ( $document['categories'] as $category ) {
-			$categories[ $category['slug'] ] = array(
-				'name' => $category['name'],
-				'slug' => $category['slug'],
-			);
-
-			if ( ! isset( $document_groups[ $category['slug'] ] ) ) {
-				$document_groups[ $category['slug'] ] = array(
-					'ranges'    => array(),
-					'languages' => array(),
-				);
-			}
-
-			foreach ( $document['ranges'] as $range ) {
-				$document_groups[ $category['slug'] ]['ranges'][ $range['slug'] ] = $range['slug'];
-			}
-
-			foreach ( $document['languages'] as $language ) {
-				$document_groups[ $category['slug'] ]['languages'][ $language['slug'] ] = $language['slug'];
-			}
-		}
-
-		foreach ( $document['ranges'] as $range ) {
-			$ranges[ $range['slug'] ] = array(
-				'name' => $range['name'],
-				'slug' => $range['slug'],
-			);
-		}
-
-		foreach ( $document['languages'] as $language ) {
-			$languages[ $language['slug'] ] = array(
-				'name' => $language['name'],
-				'slug' => $language['slug'],
-			);
-		}
+	foreach ( $category_terms as $category ) {
+		$categories[ $category->slug ] = array(
+			'name' => $category->name,
+			'slug' => $category->slug,
+		);
 	}
-
-	$relationships = ctd_get_frontend_category_relationships( $categories, $document_groups );
 
 	return array(
 		'categories'    => ctd_sort_frontend_filter_terms( $categories ),
@@ -284,26 +260,28 @@ function ctd_get_frontend_library_filters( $documents ) {
 }
 
 /**
- * @param array<string, array<string, string>> $categories Available categories.
- * @param array<string, array<string, array<string, string>>> $document_groups Document term groups by category.
+ * @param array<int, WP_Term>                       $categories Available categories.
+ * @param array<string, array<string, string>>      $ranges Ranges used by category links.
+ * @param array<string, array<string, string>>      $languages Languages used by category links.
  * @return array<string, array<string, array<int, string>>>
  */
-function ctd_get_frontend_category_relationships( $categories, $document_groups ) {
+function ctd_get_frontend_category_relationships( $categories, &$ranges, &$languages ) {
 	$relationships = array();
 
-	foreach ( $categories as $category_slug => $category ) {
-		$term = get_term_by( 'slug', $category_slug, CTD_TAXONOMY );
-
-		if ( ! ( $term instanceof WP_Term ) ) {
+	foreach ( $categories as $category ) {
+		if ( ! ( $category instanceof WP_Term ) ) {
 			continue;
 		}
 
-		$range_slugs    = ctd_get_related_term_slugs_for_frontend( $term, CTD_RANGE_TAXONOMY, $document_groups[ $category_slug ]['ranges'] );
-		$language_slugs = ctd_get_related_term_slugs_for_frontend( $term, CTD_LANGUAGE_TAXONOMY, $document_groups[ $category_slug ]['languages'] );
+		$range_terms    = ctd_get_category_linked_terms( $category, CTD_RANGE_TAXONOMY );
+		$language_terms = ctd_get_category_linked_terms( $category, CTD_LANGUAGE_TAXONOMY );
 
-		$relationships[ $category_slug ] = array(
-			'ranges'    => $range_slugs,
-			'languages' => $language_slugs,
+		ctd_add_frontend_filter_terms( $ranges, $range_terms );
+		ctd_add_frontend_filter_terms( $languages, $language_terms );
+
+		$relationships[ $category->slug ] = array(
+			'ranges'    => array_values( wp_list_pluck( $range_terms, 'slug' ) ),
+			'languages' => array_values( wp_list_pluck( $language_terms, 'slug' ) ),
 		);
 	}
 
@@ -311,26 +289,21 @@ function ctd_get_frontend_category_relationships( $categories, $document_groups 
 }
 
 /**
- * @param WP_Term                    $category Category term.
- * @param string                     $taxonomy Target taxonomy.
- * @param array<string, string>      $document_slugs Slugs used by accessible documents in this category.
- * @return array<int, string>
+ * @param array<string, array<string, string>> $target Target filter terms.
+ * @param array<int, WP_Term>                  $terms Terms to add.
+ * @return void
  */
-function ctd_get_related_term_slugs_for_frontend( $category, $taxonomy, $document_slugs ) {
-	$linked_terms = ctd_get_category_linked_terms( $category, $taxonomy );
-	$slugs        = ! empty( $linked_terms )
-		? wp_list_pluck( $linked_terms, 'slug' )
-		: array_values( $document_slugs );
+function ctd_add_frontend_filter_terms( &$target, $terms ) {
+	foreach ( $terms as $term ) {
+		if ( ! ( $term instanceof WP_Term ) ) {
+			continue;
+		}
 
-	if ( empty( $slugs ) ) {
-		return array();
+		$target[ $term->slug ] = array(
+			'name' => $term->name,
+			'slug' => $term->slug,
+		);
 	}
-
-	$slugs = array_intersect( $slugs, array_values( $document_slugs ) );
-	$slugs = array_map( 'sanitize_title', $slugs );
-	$slugs = array_unique( array_filter( $slugs ) );
-
-	return array_values( $slugs );
 }
 
 /**

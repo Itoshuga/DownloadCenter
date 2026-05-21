@@ -17,7 +17,7 @@
 		var relationships = window.ctdDocumentsLibrary && window.ctdDocumentsLibrary.relationships
 			? window.ctdDocumentsLibrary.relationships
 			: {};
-		var relationship = relationships[category] || {};
+		var relationship = category ? relationships[category] || {} : {};
 		var rangeSelect = library.querySelector('[data-ctd-filter="range"]');
 		var languageSelect = library.querySelector('[data-ctd-filter="language"]');
 
@@ -26,17 +26,15 @@
 	}
 
 	function updateSelectOptions(select, allowedSlugs) {
-		var hasRestriction;
-
 		if (!select) {
 			return;
 		}
 
-		hasRestriction = Array.isArray(allowedSlugs) && allowedSlugs.length > 0;
+		allowedSlugs = Array.isArray(allowedSlugs) ? allowedSlugs : [];
 
 		Array.prototype.forEach.call(select.options, function(option) {
 			var value = option.value || '';
-			var isAvailable = !value || !hasRestriction || allowedSlugs.indexOf(value) !== -1;
+			var isAvailable = !value || allowedSlugs.indexOf(value) !== -1;
 
 			option.hidden = !isAvailable;
 			option.disabled = !isAvailable;
@@ -45,6 +43,8 @@
 				select.value = '';
 			}
 		});
+
+		select.disabled = allowedSlugs.length === 0;
 	}
 
 	function refreshLibrary(library) {
