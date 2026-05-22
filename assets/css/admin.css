@@ -412,7 +412,9 @@ body.download_document_page_ctd-settings,
 	padding: 0 2px 9px;
 }
 
-.taxonomy-download_category #addtag .form-field > label:not(.ctd-category-protected-option) {
+.taxonomy-download_category #addtag .form-field > label:not(.ctd-category-protected-option),
+.taxonomy-download_range #addtag .form-field > label,
+.taxonomy-download_language #addtag .form-field > label {
 	color: #172033;
 	display: block;
 	font-size: 13px;
