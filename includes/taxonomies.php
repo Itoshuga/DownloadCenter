@@ -219,11 +219,14 @@ function ctd_seed_default_languages( $force = false ) {
 function ctd_render_category_relationship_add_fields() {
 	?>
 	<div class="form-field term-ctd-category-protected-wrap">
-		<label><?php esc_html_e( 'Protection', 'centre-telechargement' ); ?></label>
+		<label class="ctd-taxonomy-field-label"><?php esc_html_e( 'Protection', 'centre-telechargement' ); ?></label>
 		<?php wp_nonce_field( 'ctd_save_category_relationships', 'ctd_category_relationships_nonce' ); ?>
 		<label class="ctd-category-protected-option">
 			<input type="checkbox" name="ctd_category_protected_hint" value="1" />
-			<span><?php esc_html_e( 'Indiquer que cette catégorie contient des documents protégés', 'centre-telechargement' ); ?></span>
+			<span class="ctd-category-protected-content">
+				<strong><?php esc_html_e( 'Catégorie protégée', 'centre-telechargement' ); ?></strong>
+				<span><?php esc_html_e( 'Indiquer que cette catégorie contient des documents protégés.', 'centre-telechargement' ); ?></span>
+			</span>
 		</label>
 		<p>
 			<?php esc_html_e( 'Information visuelle uniquement, sans impact sur les accès.', 'centre-telechargement' ); ?>
@@ -231,7 +234,7 @@ function ctd_render_category_relationship_add_fields() {
 	</div>
 
 	<div class="form-field term-ctd-category-relations-wrap">
-		<label><?php esc_html_e( 'Filtres liés', 'centre-telechargement' ); ?></label>
+		<label class="ctd-taxonomy-field-label"><?php esc_html_e( 'Filtres liés', 'centre-telechargement' ); ?></label>
 		<?php ctd_render_category_relationship_controls(); ?>
 		<p>
 			<?php esc_html_e( 'Choisissez les gammes et langues disponibles lorsque cette catégorie est sélectionnée.', 'centre-telechargement' ); ?>
@@ -259,7 +262,10 @@ function ctd_render_category_relationship_edit_fields( $term ) {
 					value="1"
 					<?php checked( ctd_category_has_protected_hint( $term ) ); ?>
 				/>
-				<span><?php esc_html_e( 'Indiquer que cette catégorie contient des documents protégés', 'centre-telechargement' ); ?></span>
+				<span class="ctd-category-protected-content">
+					<strong><?php esc_html_e( 'Catégorie protégée', 'centre-telechargement' ); ?></strong>
+					<span><?php esc_html_e( 'Indiquer que cette catégorie contient des documents protégés.', 'centre-telechargement' ); ?></span>
+				</span>
 			</label>
 			<p class="description">
 				<?php esc_html_e( 'Information visuelle uniquement, sans impact sur les accès.', 'centre-telechargement' ); ?>
@@ -328,7 +334,7 @@ function ctd_render_category_relationship_controls( $selected_range_ids = array(
 								value="<?php echo esc_attr( $range->term_id ); ?>"
 								<?php checked( in_array( $range->term_id, $selected_range_ids, true ) ); ?>
 							/>
-							<span><?php echo esc_html( $range->name ); ?></span>
+							<span class="ctd-term-relationship-label"><?php echo esc_html( $range->name ); ?></span>
 						</label>
 					<?php endforeach; ?>
 				</div>
