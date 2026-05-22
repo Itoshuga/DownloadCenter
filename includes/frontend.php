@@ -15,9 +15,10 @@ add_action( 'admin_post_nopriv_ctd_document_file', 'ctd_handle_document_file_req
  * @return string
  */
 function ctd_render_documents_library_shortcode( $atts = array() ) {
+	$settings = ctd_get_frontend_settings();
 	$atts = shortcode_atts(
 		array(
-			'empty_message' => __( 'Aucun document ne correspond aux filtres sélectionnés.', 'centre-telechargement' ),
+			'empty_message' => $settings['empty_message'],
 		),
 		$atts,
 		'documents_library'
@@ -25,7 +26,6 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 
 	$documents = ctd_get_frontend_library_documents();
 	$filters   = ctd_get_frontend_library_filters( $documents );
-	$settings  = ctd_get_frontend_settings();
 	$relationships = ctd_get_frontend_filter_relationships_json();
 
 	ctd_enqueue_frontend_assets();
@@ -194,11 +194,13 @@ function ctd_get_frontend_login_form_html( $id_suffix = '' ) {
  * @return string
  */
 function ctd_get_current_frontend_url() {
-	$scheme = is_ssl() ? 'https://' : 'http://';
-	$host   = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
-	$uri    = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+	$uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
 
-	return esc_url_raw( $scheme . $host . $uri );
+	if ( '' === $uri || '/' !== $uri[0] ) {
+		$uri = '/';
+	}
+
+	return esc_url_raw( home_url( $uri ) );
 }
 
 /**
@@ -555,14 +557,25 @@ function ctd_output_document_file( $attachment_id, $event_type ) {
 		ctd_frontend_document_die( __( 'Fichier PDF introuvable.', 'centre-telechargement' ), 404 );
 	}
 
-	$file_name   = wp_basename( $file_path );
-	$disposition = 'download' === $event_type ? 'attachment' : 'inline';
+	$file_name         = sanitize_file_name( wp_basename( $file_path ) );
+	$file_name         = $file_name ? $file_name : 'document.pdf';
+	$encoded_file_name = rawurlencode( $file_name );
+	$file_size         = filesize( $file_path );
+	$disposition       = 'download' === $event_type ? 'attachment' : 'inline';
+
+	while ( ob_get_level() ) {
+		ob_end_clean();
+	}
 
 	nocache_headers();
 	header( 'Content-Type: application/pdf' );
-	header( 'Content-Length: ' . filesize( $file_path ) );
-	header( 'Content-Disposition: ' . $disposition . '; filename="' . sanitize_file_name( $file_name ) . '"' );
+	header( 'Content-Disposition: ' . $disposition . '; filename="' . $file_name . '"; filename*=UTF-8\'\'' . $encoded_file_name );
 	header( 'X-Content-Type-Options: nosniff' );
+	header( 'X-Robots-Tag: noindex, nofollow', true );
+
+	if ( false !== $file_size ) {
+		header( 'Content-Length: ' . absint( $file_size ) );
+	}
 
 	readfile( $file_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
 	exit;

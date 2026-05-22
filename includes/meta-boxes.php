@@ -367,12 +367,19 @@ function ctd_render_document_analytics_meta_box( $post ) {
 	$max_count       = 1;
 	$open_points     = array();
 	$download_points = array();
+	$open_total      = 0;
+	$download_total  = 0;
+	$last_event      = ! empty( $recent_events ) ? $recent_events[0] : null;
 
 	foreach ( $open_counts as $index => $open_count ) {
-		$max_count = max( $max_count, absint( $open_count['count'] ) );
+		$open_value = absint( $open_count['count'] );
+		$max_count  = max( $max_count, $open_value );
+		$open_total += $open_value;
 
 		if ( isset( $download_counts[ $index ] ) ) {
-			$max_count = max( $max_count, absint( $download_counts[ $index ]['count'] ) );
+			$download_value = absint( $download_counts[ $index ]['count'] );
+			$max_count      = max( $max_count, $download_value );
+			$download_total += $download_value;
 		}
 	}
 
@@ -415,6 +422,26 @@ function ctd_render_document_analytics_meta_box( $post ) {
 			<span class="ctd-field-label">
 				<?php esc_html_e( 'Ouvertures et téléchargements jour après jour', 'centre-telechargement' ); ?>
 			</span>
+			<div class="ctd-analytics-summary">
+				<div class="ctd-analytics-summary-item">
+					<span><?php esc_html_e( 'Ouvertures sur 14 jours', 'centre-telechargement' ); ?></span>
+					<strong><?php echo esc_html( number_format_i18n( $open_total ) ); ?></strong>
+				</div>
+				<div class="ctd-analytics-summary-item">
+					<span><?php esc_html_e( 'Téléchargements sur 14 jours', 'centre-telechargement' ); ?></span>
+					<strong><?php echo esc_html( number_format_i18n( $download_total ) ); ?></strong>
+				</div>
+				<div class="ctd-analytics-summary-item">
+					<span><?php esc_html_e( 'Dernière activité', 'centre-telechargement' ); ?></span>
+					<strong>
+						<?php
+						echo $last_event
+							? esc_html( $last_event['event_label'] . ' · ' . $last_event['date_label'] )
+							: esc_html__( 'Aucune', 'centre-telechargement' );
+						?>
+					</strong>
+				</div>
+			</div>
 			<div class="ctd-line-chart-panel">
 				<div class="ctd-line-chart-legend">
 					<span class="ctd-line-chart-legend-item ctd-line-chart-legend-open"><?php esc_html_e( 'Ouvertures', 'centre-telechargement' ); ?></span>

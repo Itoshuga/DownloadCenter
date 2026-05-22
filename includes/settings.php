@@ -373,6 +373,7 @@ function ctd_get_frontend_settings_defaults() {
 		'filter_gap'             => '14px',
 		'document_min_width'     => '150px',
 		'document_gap'           => '26px',
+		'empty_message'          => __( 'Aucun document ne correspond aux filtres sélectionnés.', 'centre-telechargement' ),
 		'login_notice_text'      => __( 'Merci de vous connecter pour télécharger les fichiers', 'centre-telechargement' ),
 		'login_button_text'      => __( 'Connexion / Demande de Mot de Passe', 'centre-telechargement' ),
 		'password_request_shortcode' => '',
@@ -419,6 +420,7 @@ function ctd_sanitize_frontend_settings( $settings ) {
 		'filter_gap'             => ctd_sanitize_css_length_setting( $settings['filter_gap'] ?? '', $defaults['filter_gap'] ),
 		'document_min_width'     => ctd_sanitize_css_length_setting( $settings['document_min_width'] ?? '', $defaults['document_min_width'] ),
 		'document_gap'           => ctd_sanitize_css_length_setting( $settings['document_gap'] ?? '', $defaults['document_gap'] ),
+		'empty_message'          => ctd_sanitize_plain_text_setting( $settings['empty_message'] ?? '', $defaults['empty_message'] ),
 		'login_notice_text'      => ctd_sanitize_plain_text_setting( $settings['login_notice_text'] ?? '', $defaults['login_notice_text'] ),
 		'login_button_text'      => ctd_sanitize_plain_text_setting( $settings['login_button_text'] ?? '', $defaults['login_button_text'] ),
 		'password_request_shortcode' => ctd_sanitize_shortcode_setting( $settings['password_request_shortcode'] ?? '' ),
@@ -592,6 +594,7 @@ function ctd_render_settings_page() {
 					<div class="ctd-settings-fields ctd-settings-fields-single">
 						<?php
 						ctd_render_text_setting_field( 'password_request_shortcode', __( 'Shortcode du formulaire de demande de mot de passe', 'centre-telechargement' ), $settings['password_request_shortcode'] );
+						ctd_render_text_setting_field( 'empty_message', __( 'Message si aucun document ne correspond aux filtres', 'centre-telechargement' ), $settings['empty_message'] );
 						?>
 					</div>
 				</section>

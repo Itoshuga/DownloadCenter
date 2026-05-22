@@ -911,6 +911,38 @@ body.download_document_page_ctd-settings,
 	padding: 14px;
 }
 
+.ctd-analytics-summary {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	margin-bottom: 12px;
+}
+
+.ctd-analytics-summary-item {
+	background: #f8fafc;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+	padding: 14px;
+}
+
+.ctd-analytics-summary-item span {
+	color: #64748b;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.ctd-analytics-summary-item strong {
+	color: #172033;
+	font-size: 18px;
+	line-height: 1.25;
+	overflow-wrap: anywhere;
+}
+
 .ctd-line-chart-panel {
 	background: #f8fafc;
 	border: 1px solid #dfe5ef;
@@ -1557,6 +1589,10 @@ body.download_document_page_ctd-settings,
 	.ctd-settings-fields-colors,
 	.ctd-settings-fields-tracks,
 	.ctd-settings-fields-inline {
+		grid-template-columns: 1fr;
+	}
+
+	.ctd-analytics-summary {
 		grid-template-columns: 1fr;
 	}
 }

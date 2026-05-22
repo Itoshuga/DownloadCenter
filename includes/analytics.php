@@ -13,7 +13,7 @@ function ctd_get_analytics_table_name() {
 }
 
 function ctd_maybe_create_analytics_table() {
-	if ( CTD_VERSION === get_option( 'ctd_analytics_table_version' ) ) {
+	if ( CTD_ANALYTICS_SCHEMA_VERSION === get_option( 'ctd_analytics_table_version' ) ) {
 		return;
 	}
 
@@ -45,7 +45,7 @@ function ctd_create_analytics_table() {
 
 	dbDelta( $sql );
 
-	update_option( 'ctd_analytics_table_version', CTD_VERSION );
+	update_option( 'ctd_analytics_table_version', CTD_ANALYTICS_SCHEMA_VERSION );
 }
 
 /**
