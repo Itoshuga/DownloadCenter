@@ -1048,6 +1048,17 @@ body.download_document_page_ctd-settings,
 	outline: 0;
 }
 
+.ctd-tour-close .fa-xmark {
+	font-size: 14px;
+	line-height: 1;
+}
+
+.ctd-tour-close .fa-xmark::before {
+	content: "\f00d";
+	font-family: "Font Awesome 6 Free", "Font Awesome 5 Free";
+	font-weight: 900;
+}
+
 .ctd-tour-actions {
 	display: flex;
 	gap: 8px;
@@ -1070,6 +1081,115 @@ body.download_document_page_ctd-settings,
 .ctd-tour-actions .button-primary:focus {
 	background: #163ea9;
 	border-color: #163ea9;
+}
+
+.ctd-tour-backdrop {
+	background: rgba(15, 23, 42, 0.1);
+}
+
+.ctd-tour-highlight {
+	outline: 3px solid rgba(17, 169, 207, 0.85) !important;
+	outline-offset: 3px !important;
+}
+
+.ctd-tour-card.ctd-tour-card-docked {
+	border: 1px solid #c9d9ff;
+	border-radius: 12px;
+	box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+	left: auto;
+	max-height: calc(100vh - 112px);
+	overflow: auto;
+	padding: 18px;
+	right: 24px;
+	top: 76px;
+	width: min(390px, calc(100vw - 48px));
+}
+
+.ctd-tour-card.ctd-tour-card-docked.is-left {
+	left: 184px;
+	right: auto;
+}
+
+.ctd-tour-card.ctd-tour-card-docked.is-right {
+	left: auto;
+	right: 24px;
+}
+
+.ctd-tour-card-docked .ctd-tour-progress {
+	background: #eef4ff;
+	border: 1px solid #c9d9ff;
+	border-radius: 999px;
+	display: inline-flex;
+	margin-bottom: 12px;
+	padding: 4px 9px;
+}
+
+.ctd-tour-card-docked h2 {
+	font-size: 20px;
+	margin-bottom: 8px;
+}
+
+.ctd-tour-card-docked p {
+	color: #475569;
+	font-size: 14px;
+	line-height: 1.55;
+}
+
+.ctd-tour-task {
+	background: #f8fafc;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	color: #334155;
+	display: grid;
+	font-size: 13px;
+	gap: 5px;
+	line-height: 1.45;
+	margin-top: 14px;
+	padding: 11px 12px;
+}
+
+.ctd-tour-task strong {
+	color: #172033;
+	font-size: 11px;
+	font-weight: 900;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.ctd-tour-message {
+	background: #fff7ed;
+	border: 1px solid #fed7aa;
+	border-radius: 8px;
+	color: #9a3412;
+	display: grid;
+	font-size: 13px;
+	gap: 5px;
+	line-height: 1.45;
+	margin-top: 12px;
+	padding: 11px 12px;
+}
+
+.ctd-tour-message strong {
+	font-size: 11px;
+	font-weight: 900;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.ctd-tour-message.is-ready {
+	background: #e8f7ee;
+	border-color: #bce8ca;
+	color: #137a3b;
+}
+
+.ctd-tour-actions .ctd-tour-button-disabled,
+.ctd-tour-actions .ctd-tour-button-disabled:hover,
+.ctd-tour-actions .ctd-tour-button-disabled:focus {
+	background: #cbd5e1 !important;
+	border-color: #cbd5e1 !important;
+	box-shadow: none !important;
+	color: #64748b !important;
+	cursor: not-allowed;
 }
 
 .ctd-settings-layout {
@@ -1258,6 +1378,17 @@ body.download_document_page_ctd-settings,
 	.ctd-tour-launch-card {
 		align-items: flex-start;
 		flex-direction: column;
+	}
+
+	.ctd-tour-card.ctd-tour-card-docked,
+	.ctd-tour-card.ctd-tour-card-docked.is-left,
+	.ctd-tour-card.ctd-tour-card-docked.is-right {
+		bottom: 16px;
+		left: 16px;
+		max-height: 48vh;
+		right: 16px;
+		top: auto;
+		width: auto;
 	}
 
 	.ctd-settings-fields-colors,

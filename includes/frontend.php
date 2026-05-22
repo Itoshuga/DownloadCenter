@@ -209,12 +209,7 @@ function ctd_enqueue_frontend_base_assets() {
 		return;
 	}
 
-	foreach ( array( 'elementor-icons-fa-solid', 'font-awesome', 'fontawesome' ) as $font_awesome_handle ) {
-		if ( wp_style_is( $font_awesome_handle, 'registered' ) ) {
-			wp_enqueue_style( $font_awesome_handle );
-			break;
-		}
-	}
+	ctd_enqueue_font_awesome();
 
 	wp_enqueue_style(
 		'ctd-frontend',

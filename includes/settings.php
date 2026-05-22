@@ -100,6 +100,8 @@ function ctd_enqueue_admin_tour_assets( $current_page = '' ) {
 		return;
 	}
 
+	ctd_enqueue_font_awesome();
+
 	wp_enqueue_script(
 		'ctd-admin-tour',
 		CTD_PLUGIN_URL . 'assets/js/admin-tour.js',
@@ -132,87 +134,221 @@ function ctd_get_admin_tour_config( $current_page ) {
 			'close'    => __( 'Fermer', 'centre-telechargement' ),
 			'step'     => __( 'Étape', 'centre-telechargement' ),
 			'of'       => __( 'sur', 'centre-telechargement' ),
+			'required' => __( 'Action requise avant de continuer.', 'centre-telechargement' ),
+			'ready'    => __( 'Étape validée, vous pouvez continuer.', 'centre-telechargement' ),
+			'todo'     => __( 'À faire', 'centre-telechargement' ),
+			'valid'    => __( 'Validé', 'centre-telechargement' ),
 		),
 		'steps'       => ctd_get_admin_tour_steps(),
 	);
 }
 
 /**
- * @return array<int, array<string, string>>
+ * @return array<int, array<string, mixed>>
  */
 function ctd_get_admin_tour_steps() {
 	return array(
 		array(
-			'page'     => 'settings',
-			'selector' => '.ctd-tour-launch-card',
-			'title'    => __( 'Guide du Centre de Téléchargement', 'centre-telechargement' ),
-			'body'     => __( 'Cette visite vous accompagne dans le flux conseillé : créer les filtres, lier les catégories, puis publier un document PDF.', 'centre-telechargement' ),
+			'page'      => 'settings',
+			'selector'  => '.ctd-tour-launch-card',
+			'title'     => __( 'Bienvenue dans le guide', 'centre-telechargement' ),
+			'body'      => __( 'On va créer les filtres dans le bon ordre, puis ajouter un document PDF. La visite vous demandera de manipuler chaque zone avant de continuer.', 'centre-telechargement' ),
+			'task'      => __( 'Lisez cette introduction, puis lancez la première action.', 'centre-telechargement' ),
+			'nextLabel' => __( 'Commencer', 'centre-telechargement' ),
 		),
 		array(
-			'page'     => 'range',
-			'selector' => '#addtag',
-			'title'    => __( 'Créer une gamme', 'centre-telechargement' ),
-			'body'     => __( 'Commencez par créer les gammes qui serviront de filtres. Une gamme peut ensuite être liée à une ou plusieurs catégories.', 'centre-telechargement' ),
+			'page'         => 'range',
+			'selector'     => '#addtag',
+			'title'        => __( 'Créer une gamme', 'centre-telechargement' ),
+			'body'         => __( 'Une gamme correspond à une famille de documents. Elle servira ensuite à affiner les documents visibles sur le front.', 'centre-telechargement' ),
+			'task'         => __( 'Saisissez le nom de la gamme, puis validez le formulaire.', 'centre-telechargement' ),
+			'action'       => 'submit',
+			'form'         => '#addtag',
+			'nextLabel'    => __( 'Valider la gamme', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#tag-name',
+					'type'     => 'value',
+					'message'  => __( 'Renseignez un nom de gamme avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'category',
-			'selector' => '#addtag',
-			'title'    => __( 'Créer une catégorie', 'centre-telechargement' ),
-			'body'     => __( 'La catégorie est le filtre principal du front. Donnez-lui un nom clair, puis configurez les informations liées juste en dessous.', 'centre-telechargement' ),
+			'page'         => 'category',
+			'selector'     => '#addtag',
+			'title'        => __( 'Nommer la catégorie', 'centre-telechargement' ),
+			'body'         => __( 'La catégorie est le premier filtre utilisé par le visiteur. Choisissez un nom simple et lisible.', 'centre-telechargement' ),
+			'task'         => __( 'Renseignez le nom de la catégorie. Ne validez pas encore, on configure les liaisons juste après.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#tag-name',
+					'type'     => 'value',
+					'message'  => __( 'Renseignez le nom de la catégorie avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'category',
-			'selector' => '.term-ctd-category-protected-wrap',
-			'title'    => __( 'Indiquer la protection', 'centre-telechargement' ),
-			'body'     => __( 'Cette case est informative : elle affiche un cadenas dans le filtre front, sans modifier les droits réels des documents.', 'centre-telechargement' ),
+			'page'         => 'category',
+			'selector'     => '.term-ctd-category-protected-wrap',
+			'title'        => __( 'Indiquer la protection', 'centre-telechargement' ),
+			'body'         => __( 'Cette indication affiche un cadenas dans le filtre front. Elle est informative et ne remplace pas les droits du document.', 'centre-telechargement' ),
+			'task'         => __( 'Cliquez dans cette zone pour choisir si la catégorie doit être signalée comme protégée ou non.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '.term-ctd-category-protected-wrap',
+					'type'     => 'interacted',
+					'message'  => __( 'Cliquez dans la zone Protection pour confirmer votre choix.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'category',
-			'selector' => '.term-ctd-category-relations-wrap',
-			'title'    => __( 'Lier gammes et langues', 'centre-telechargement' ),
-			'body'     => __( 'Sélectionnez les gammes et langues disponibles pour cette catégorie. Ces liaisons servent à guider les filtres et la saisie des documents.', 'centre-telechargement' ),
+			'page'         => 'category',
+			'selector'     => '.term-ctd-category-relations-wrap',
+			'title'        => __( 'Lier gammes et langues', 'centre-telechargement' ),
+			'body'         => __( 'Ces liaisons pilotent les filtres dépendants. Quand cette catégorie sera choisie, seules les gammes et langues liées seront proposées.', 'centre-telechargement' ),
+			'task'         => __( 'Cochez au moins une gamme et une langue, puis validez la catégorie.', 'centre-telechargement' ),
+			'action'       => 'submit',
+			'form'         => '#addtag',
+			'nextLabel'    => __( 'Valider la catégorie', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#tag-name',
+					'type'     => 'value',
+					'message'  => __( 'Le nom de la catégorie est obligatoire avant validation.', 'centre-telechargement' ),
+				),
+				array(
+					'selector' => 'input[name="ctd_category_range_ids[]"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Cochez au moins une gamme liée.', 'centre-telechargement' ),
+				),
+				array(
+					'selector' => 'input[name="ctd_category_language_ids[]"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Cochez au moins une langue liée.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#titlediv',
-			'title'    => __( 'Nom du document', 'centre-telechargement' ),
-			'body'     => __( 'Le titre WordPress devient le nom affiché sous la vignette PDF sur le front-office.', 'centre-telechargement' ),
+			'page'         => 'document',
+			'selector'     => '#titlediv',
+			'title'        => __( 'Nommer le document', 'centre-telechargement' ),
+			'body'         => __( 'Le titre WordPress devient le nom affiché sous la vignette PDF sur le front-office.', 'centre-telechargement' ),
+			'task'         => __( 'Renseignez un titre clair pour le document.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#title',
+					'type'     => 'value',
+					'message'  => __( 'Renseignez le nom du document avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#ctd_document_file',
-			'title'    => __( 'Ajouter le PDF', 'centre-telechargement' ),
-			'body'     => __( 'Choisissez un fichier PDF depuis la médiathèque. Le plugin vérifie que le fichier sélectionné est bien un PDF.', 'centre-telechargement' ),
+			'page'         => 'document',
+			'selector'     => '#ctd_document_file',
+			'title'        => __( 'Choisir le PDF', 'centre-telechargement' ),
+			'body'         => __( 'Le fichier vient de la médiathèque WordPress. Le plugin contrôle qu’il s’agit bien d’un PDF.', 'centre-telechargement' ),
+			'task'         => __( 'Cliquez sur Choisir un PDF et sélectionnez le fichier à associer.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#ctd_pdf_file_id',
+					'type'     => 'value',
+					'message'  => __( 'Choisissez un PDF avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#' . CTD_TAXONOMY . 'div',
-			'title'    => __( 'Attribuer une catégorie', 'centre-telechargement' ),
-			'body'     => __( 'Cochez la catégorie du document. Les gammes et langues visibles dans les blocs suivants s’adaptent aux liaisons configurées sur la catégorie.', 'centre-telechargement' ),
+			'page'         => 'document',
+			'selector'     => '#' . CTD_TAXONOMY . 'div',
+			'title'        => __( 'Associer une catégorie', 'centre-telechargement' ),
+			'body'         => __( 'La catégorie détermine les gammes et langues disponibles ensuite.', 'centre-telechargement' ),
+			'task'         => __( 'Cochez une catégorie pour faire apparaître les choix compatibles.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#' . CTD_TAXONOMY . 'div input[type="checkbox"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Cochez une catégorie avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#' . CTD_RANGE_TAXONOMY . 'div',
-			'title'    => __( 'Choisir la gamme', 'centre-telechargement' ),
-			'body'     => __( 'Sélectionnez la gamme du document. Si aucune catégorie n’est cochée, les gammes ne sont pas proposées afin d’éviter les erreurs de saisie.', 'centre-telechargement' ),
+			'page'         => 'document',
+			'selector'     => '#' . CTD_RANGE_TAXONOMY . 'div',
+			'title'        => __( 'Associer une gamme', 'centre-telechargement' ),
+			'body'         => __( 'Les gammes affichées ici dépendent de la catégorie cochée.', 'centre-telechargement' ),
+			'task'         => __( 'Cochez la gamme correspondant au document.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#' . CTD_RANGE_TAXONOMY . 'div input[type="checkbox"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Cochez une gamme avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#' . CTD_LANGUAGE_TAXONOMY . 'div',
-			'title'    => __( 'Choisir la langue', 'centre-telechargement' ),
-			'body'     => __( 'Sélectionnez la langue du PDF. Les langues proposées suivent les liaisons définies dans la catégorie.', 'centre-telechargement' ),
+			'page'         => 'document',
+			'selector'     => '#' . CTD_LANGUAGE_TAXONOMY . 'div',
+			'title'        => __( 'Associer une langue', 'centre-telechargement' ),
+			'body'         => __( 'La langue permet au visiteur de filtrer les documents dans la bibliothèque.', 'centre-telechargement' ),
+			'task'         => __( 'Cochez la langue du PDF.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#' . CTD_LANGUAGE_TAXONOMY . 'div input[type="checkbox"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Cochez une langue avant de continuer.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#ctd_document_access',
-			'title'    => __( 'Définir la protection', 'centre-telechargement' ),
-			'body'     => __( 'Choisissez Public ou Protégé. En protégé, vous pouvez autoriser tous les utilisateurs connectés ou seulement certains utilisateurs.', 'centre-telechargement' ),
+			'page'         => 'document',
+			'selector'     => '#ctd_document_access',
+			'title'        => __( 'Définir les accès', 'centre-telechargement' ),
+			'body'         => __( 'Un document public est visible librement. Un document protégé demande une connexion, soit pour tous les utilisateurs, soit pour une liste précise.', 'centre-telechargement' ),
+			'task'         => __( 'Cliquez sur Public ou Protégé, puis ajustez le mode d’accès si besoin.', 'centre-telechargement' ),
+			'requirements' => array(
+				array(
+					'selector' => '#ctd_document_access',
+					'type'     => 'interacted',
+					'message'  => __( 'Cliquez dans la zone Accès pour confirmer le choix de protection.', 'centre-telechargement' ),
+				),
+			),
 		),
 		array(
-			'page'     => 'document',
-			'selector' => '#submitdiv',
-			'title'    => __( 'Publier le document', 'centre-telechargement' ),
-			'body'     => __( 'Une fois le PDF, les filtres et l’accès configurés, publiez le document. Il apparaîtra ensuite dans le shortcode si l’utilisateur est autorisé.', 'centre-telechargement' ),
+			'page'           => 'document',
+			'selector'       => '#submitdiv',
+			'title'          => __( 'Enregistrer le document', 'centre-telechargement' ),
+			'body'           => __( 'Dernière vérification : le document doit avoir un titre, un PDF, une catégorie, une gamme, une langue et une règle d’accès.', 'centre-telechargement' ),
+			'task'           => __( 'Publiez ou enregistrez le document pour terminer la procédure.', 'centre-telechargement' ),
+			'action'         => 'submit',
+			'form'           => '#post',
+			'finishOnSubmit' => true,
+			'nextLabel'      => __( 'Publier / Enregistrer', 'centre-telechargement' ),
+			'requirements'   => array(
+				array(
+					'selector' => '#title',
+					'type'     => 'value',
+					'message'  => __( 'Le document doit avoir un nom avant publication.', 'centre-telechargement' ),
+				),
+				array(
+					'selector' => '#ctd_pdf_file_id',
+					'type'     => 'value',
+					'message'  => __( 'Un PDF doit être choisi avant publication.', 'centre-telechargement' ),
+				),
+				array(
+					'selector' => '#' . CTD_TAXONOMY . 'div input[type="checkbox"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Une catégorie doit être cochée avant publication.', 'centre-telechargement' ),
+				),
+				array(
+					'selector' => '#' . CTD_RANGE_TAXONOMY . 'div input[type="checkbox"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Une gamme doit être cochée avant publication.', 'centre-telechargement' ),
+				),
+				array(
+					'selector' => '#' . CTD_LANGUAGE_TAXONOMY . 'div input[type="checkbox"]:checked',
+					'type'     => 'exists',
+					'message'  => __( 'Une langue doit être cochée avant publication.', 'centre-telechargement' ),
+				),
+			),
 		),
 	);
 }
@@ -237,7 +373,7 @@ function ctd_get_frontend_settings_defaults() {
 		'filter_gap'             => '14px',
 		'document_min_width'     => '150px',
 		'document_gap'           => '26px',
-		'login_notice_text'      => __( 'Merci de vous connecter pour tÃ©lÃ©charger les fichiers', 'centre-telechargement' ),
+		'login_notice_text'      => __( 'Merci de vous connecter pour télécharger les fichiers', 'centre-telechargement' ),
 		'login_button_text'      => __( 'Connexion / Demande de Mot de Passe', 'centre-telechargement' ),
 		'password_request_shortcode' => '',
 	);
@@ -443,7 +579,7 @@ function ctd_render_settings_page() {
 				<section class="ctd-settings-panel">
 					<header class="ctd-settings-panel-header">
 						<h2><?php esc_html_e( 'Connexion front', 'centre-telechargement' ); ?></h2>
-						<p><?php esc_html_e( 'Ces textes sont affichÃ©s au-dessus des filtres du shortcode pour les visiteurs non connectÃ©s.', 'centre-telechargement' ); ?></p>
+						<p><?php esc_html_e( 'Ces textes sont affichés au-dessus des filtres du shortcode pour les visiteurs non connectés.', 'centre-telechargement' ); ?></p>
 					</header>
 
 					<div class="ctd-settings-fields ctd-settings-fields-inline">

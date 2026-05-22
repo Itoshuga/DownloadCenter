@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.4.9
+ * Version: 0.5.1
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.4.9' );
+define( 'CTD_VERSION', '0.5.1' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CTD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -32,6 +32,25 @@ define( 'CTD_META_STATUS', '_ctd_document_status' );
 define( 'CTD_META_ACCESS_MODE', '_ctd_document_access_mode' );
 define( 'CTD_META_ALLOWED_USERS', '_ctd_document_allowed_users' );
 define( 'CTD_FRONTEND_SETTINGS_OPTION', 'ctd_frontend_settings' );
+
+/**
+ * @return void
+ */
+function ctd_enqueue_font_awesome() {
+	foreach ( array( 'elementor-icons-fa-solid', 'font-awesome', 'fontawesome' ) as $font_awesome_handle ) {
+		if ( wp_style_is( $font_awesome_handle, 'registered' ) ) {
+			wp_enqueue_style( $font_awesome_handle );
+			return;
+		}
+	}
+
+	wp_enqueue_style(
+		'ctd-font-awesome',
+		'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css',
+		array(),
+		'6.5.2'
+	);
+}
 
 /**
  * Capabilities mapped to administrators through manage_options.
@@ -744,7 +763,7 @@ function ctd_get_media_script() {
 	var mediaFrame = null;
 
 	function renderSelection(attachment) {
-		$('#ctd_pdf_file_id').val(attachment.id || '');
+		$('#ctd_pdf_file_id').val(attachment.id || '').trigger('change');
 		$('#ctd-pdf-filename').text(attachment.filename || attachment.title || 'Document PDF');
 		$('#ctd-pdf-link').attr('href', attachment.url || '#').toggleClass('hidden', !attachment.url);
 		$('#ctd-remove-pdf').removeClass('hidden');
@@ -806,7 +825,7 @@ function ctd_get_media_script() {
 	$(document).on('click', '.ctd-remove-file', function(event) {
 		event.preventDefault();
 
-		$('#ctd_pdf_file_id').val('');
+		$('#ctd_pdf_file_id').val('').trigger('change');
 		$('#ctd-pdf-filename').text('Aucun fichier sélectionné');
 		$('#ctd-pdf-link').attr('href', '#').addClass('hidden');
 		$('#ctd-remove-pdf').addClass('hidden');
