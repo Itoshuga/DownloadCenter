@@ -251,17 +251,20 @@ function ctd_get_frontend_library_documents() {
 	foreach ( $query->posts as $post ) {
 		$attachment_id = absint( get_post_meta( $post->ID, CTD_META_FILE_ID, true ) );
 
-		if ( ! $attachment_id || ! ctd_attachment_is_pdf( $attachment_id ) || ! ctd_user_can_access_document( $post->ID ) ) {
+		if ( ! $attachment_id || ! ctd_attachment_is_pdf( $attachment_id ) || ! ctd_user_can_see_document_card( $post->ID ) ) {
 			continue;
 		}
+
+		$can_access = ctd_user_can_access_document( $post->ID );
 
 		$documents[] = array(
 			'id'           => $post->ID,
 			'title'        => get_the_title( $post ),
 			'attachment_id' => $attachment_id,
 			'preview_url'  => ctd_get_document_pdf_preview_url( $attachment_id ),
-			'open_url'     => ctd_get_document_file_action_url( $post->ID, 'open' ),
-			'download_url' => ctd_get_document_file_action_url( $post->ID, 'download' ),
+			'can_access'   => $can_access,
+			'open_url'     => $can_access ? ctd_get_document_file_action_url( $post->ID, 'open' ) : '',
+			'download_url' => $can_access ? ctd_get_document_file_action_url( $post->ID, 'download' ) : '',
 			'categories'   => ctd_get_document_frontend_terms( $post->ID, CTD_TAXONOMY ),
 			'ranges'       => ctd_get_document_frontend_terms( $post->ID, CTD_RANGE_TAXONOMY ),
 			'languages'    => ctd_get_document_frontend_terms( $post->ID, CTD_LANGUAGE_TAXONOMY ),
@@ -271,6 +274,17 @@ function ctd_get_frontend_library_documents() {
 	wp_reset_postdata();
 
 	return $documents;
+}
+
+/**
+ * Logged-in users can see every document card, but opening/downloading still
+ * depends on ctd_user_can_access_document(). Anonymous visitors see no cards.
+ *
+ * @param int $post_id Document post ID.
+ * @return bool
+ */
+function ctd_user_can_see_document_card( $post_id ) {
+	return is_user_logged_in();
 }
 
 /**

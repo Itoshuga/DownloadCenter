@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.5.5
+ * Version: 0.5.6
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.5.5' );
+define( 'CTD_VERSION', '0.5.6' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CTD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -196,14 +196,14 @@ function ctd_get_document_allowed_user_ids( $post_id ) {
  * @return bool
  */
 function ctd_user_can_access_document( $post_id, $user_id = 0 ) {
-	if ( 'public' === ctd_get_document_status( $post_id ) ) {
-		return true;
-	}
-
 	$user_id = $user_id ? absint( $user_id ) : get_current_user_id();
 
 	if ( ! $user_id ) {
 		return false;
+	}
+
+	if ( 'public' === ctd_get_document_status( $post_id ) ) {
+		return true;
 	}
 
 	if ( user_can( $user_id, 'manage_options' ) ) {

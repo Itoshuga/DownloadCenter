@@ -563,6 +563,10 @@ body.logged-in .ctd-front-login-prompt {
 	display: none;
 }
 
+.ctd-front-document.is-locked {
+	cursor: not-allowed;
+}
+
 .ctd-front-document-preview {
 	background: var(--ctd-color-surface);
 	border: 1px solid var(--ctd-color-border-soft);
@@ -580,6 +584,13 @@ body.logged-in .ctd-front-login-prompt {
 	transform: translateY(-2px);
 }
 
+.ctd-front-document.is-locked:hover .ctd-front-document-preview,
+.ctd-front-document.is-locked:focus-within .ctd-front-document-preview {
+	border-color: var(--ctd-color-border-soft);
+	box-shadow: 0 10px 28px rgba(16, 35, 63, 0.06);
+	transform: none;
+}
+
 .ctd-front-document-open {
 	align-items: center;
 	aspect-ratio: 1 / 1.32;
@@ -590,11 +601,30 @@ body.logged-in .ctd-front-login-prompt {
 	width: 100%;
 }
 
+.ctd-front-document-open-disabled {
+	pointer-events: none;
+}
+
 .ctd-front-document-open img {
 	display: block;
 	height: 100%;
 	object-fit: contain;
 	width: 100%;
+}
+
+.ctd-front-document.is-locked .ctd-front-document-open img,
+.ctd-front-document.is-locked .ctd-front-pdf-fallback {
+	filter: grayscale(1);
+	opacity: 0.42;
+}
+
+.ctd-front-document.is-locked .ctd-front-document-preview::after {
+	background: rgba(248, 250, 252, 0.58);
+	content: "";
+	inset: 0;
+	pointer-events: none;
+	position: absolute;
+	z-index: 1;
 }
 
 .ctd-front-pdf-fallback {
@@ -654,6 +684,28 @@ body.logged-in .ctd-front-login-prompt {
 	font-weight: 900;
 }
 
+.ctd-front-lock-badge {
+	align-items: center;
+	background: rgba(100, 116, 139, 0.92);
+	border-radius: 999px;
+	box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+	color: #fff;
+	display: inline-flex;
+	height: 38px;
+	justify-content: center;
+	position: absolute;
+	right: 10px;
+	top: 10px;
+	width: 38px;
+	z-index: 2;
+}
+
+.ctd-front-lock-badge .fa-lock::before {
+	content: "\f023";
+	font-family: "Font Awesome 6 Free", "Font Awesome 5 Free";
+	font-weight: 900;
+}
+
 .ctd-front-document-title {
 	color: var(--ctd-color-primary);
 	display: block;
@@ -670,6 +722,17 @@ body.logged-in .ctd-front-login-prompt {
 .ctd-front-document-title:focus {
 	color: var(--ctd-color-accent-hover);
 	outline: 0;
+}
+
+.ctd-front-document-title-disabled {
+	color: #64748b;
+	cursor: not-allowed;
+	opacity: 0.72;
+}
+
+.ctd-front-document-title-disabled:hover,
+.ctd-front-document-title-disabled:focus {
+	color: #64748b;
 }
 
 .ctd-front-empty {
