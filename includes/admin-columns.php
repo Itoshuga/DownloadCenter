@@ -72,7 +72,9 @@ function ctd_render_document_file_column( $post_id ) {
 		return;
 	}
 
-	$file_url  = wp_get_attachment_url( $attachment_id );
+	$file_url  = function_exists( 'ctd_get_document_file_action_url' )
+		? ctd_get_document_file_action_url( $post_id, 'open' )
+		: '';
 	$file_path = get_attached_file( $attachment_id );
 	$file_name = $file_path ? wp_basename( $file_path ) : get_the_title( $attachment_id );
 

@@ -92,6 +92,10 @@ function ctd_get_frontend_filter_relationships_json() {
  * @return void
  */
 function ctd_render_frontend_login_prompt( $settings ) {
+	if ( is_user_logged_in() ) {
+		return;
+	}
+
 	$modal_id    = 'ctd-front-login-modal-' . wp_rand( 1000, 9999 );
 	$notice_text = isset( $settings['login_notice_text'] ) ? $settings['login_notice_text'] : '';
 	$button_text = isset( $settings['login_button_text'] ) ? $settings['login_button_text'] : '';
@@ -130,7 +134,7 @@ function ctd_render_frontend_login_prompt( $settings ) {
 				</button>
 			</div>
 
-			<div class="ctd-front-modal-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Modes dâ€™accÃ¨s', 'centre-telechargement' ); ?>">
+			<div class="ctd-front-modal-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Modes d\'accès', 'centre-telechargement' ); ?>">
 				<button type="button" class="ctd-front-modal-tab is-active" role="tab" aria-selected="true" data-ctd-tab-button="login">
 					<?php esc_html_e( 'Connexion', 'centre-telechargement' ); ?>
 				</button>
@@ -284,7 +288,7 @@ function ctd_get_frontend_library_documents() {
  * @return bool
  */
 function ctd_user_can_see_document_card( $post_id ) {
-	return is_user_logged_in();
+	return absint( $post_id ) && is_user_logged_in();
 }
 
 /**
@@ -518,7 +522,10 @@ function ctd_handle_document_file_request() {
 		ctd_frontend_document_die( __( 'Lien invalide.', 'centre-telechargement' ), 403 );
 	}
 
-	if ( CTD_POST_TYPE !== get_post_type( $document_id ) || 'publish' !== get_post_status( $document_id ) ) {
+	if (
+		CTD_POST_TYPE !== get_post_type( $document_id )
+		|| ( 'publish' !== get_post_status( $document_id ) && ! current_user_can( 'edit_post', $document_id ) )
+	) {
 		ctd_frontend_document_die( __( 'Document introuvable.', 'centre-telechargement' ), 404 );
 	}
 
@@ -543,14 +550,8 @@ function ctd_handle_document_file_request() {
  */
 function ctd_output_document_file( $attachment_id, $event_type ) {
 	$file_path = get_attached_file( $attachment_id );
-	$file_url  = wp_get_attachment_url( $attachment_id );
 
 	if ( ! $file_path || ! is_readable( $file_path ) ) {
-		if ( $file_url ) {
-			wp_safe_redirect( $file_url );
-			exit;
-		}
-
 		ctd_frontend_document_die( __( 'Fichier PDF introuvable.', 'centre-telechargement' ), 404 );
 	}
 

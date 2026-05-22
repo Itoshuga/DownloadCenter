@@ -129,7 +129,9 @@ function ctd_render_document_file_meta_box( $post ) {
 	$attachment_id = absint( get_post_meta( $post->ID, CTD_META_FILE_ID, true ) );
 	$has_pdf       = $attachment_id && ctd_attachment_is_pdf( $attachment_id );
 	$attachment_id = $has_pdf ? $attachment_id : 0;
-	$file_url      = $attachment_id ? wp_get_attachment_url( $attachment_id ) : '';
+	$file_url      = $attachment_id && function_exists( 'ctd_get_document_file_action_url' )
+		? ctd_get_document_file_action_url( $post->ID, 'open' )
+		: '';
 	$file_path     = $attachment_id ? get_attached_file( $attachment_id ) : '';
 	$file_name     = $file_path ? wp_basename( $file_path ) : '';
 	$has_file      = $attachment_id && $file_url;
@@ -570,16 +572,52 @@ function ctd_save_document_meta( $post_id, $post ) {
 
 	if ( ! $attachment_id ) {
 		delete_post_meta( $post_id, CTD_META_FILE_ID );
+
+		if ( ctd_document_status_requires_pdf( $post ) ) {
+			ctd_move_document_to_draft( $post_id );
+			ctd_queue_admin_notice( __( 'Un PDF valide est obligatoire avant publication. Le document a été repassé en brouillon.', 'centre-telechargement' ) );
+		}
+
 		return;
 	}
 
 	if ( ! ctd_attachment_is_pdf( $attachment_id ) ) {
 		delete_post_meta( $post_id, CTD_META_FILE_ID );
+
+		if ( ctd_document_status_requires_pdf( $post ) ) {
+			ctd_move_document_to_draft( $post_id );
+			ctd_queue_admin_notice( __( 'Un PDF valide est obligatoire avant publication. Le document a été repassé en brouillon.', 'centre-telechargement' ) );
+			return;
+		}
 		ctd_queue_admin_notice( __( 'Le fichier sélectionné doit être un PDF.', 'centre-telechargement' ) );
 		return;
 	}
 
 	update_post_meta( $post_id, CTD_META_FILE_ID, $attachment_id );
+}
+
+/**
+ * @param WP_Post $post Current post.
+ * @return bool
+ */
+function ctd_document_status_requires_pdf( $post ) {
+	return $post instanceof WP_Post
+		&& in_array( $post->post_status, array( 'publish', 'future', 'private' ), true );
+}
+
+/**
+ * @param int $post_id Current post ID.
+ * @return void
+ */
+function ctd_move_document_to_draft( $post_id ) {
+	remove_action( 'save_post_' . CTD_POST_TYPE, 'ctd_save_document_meta', 10 );
+	wp_update_post(
+		array(
+			'ID'          => absint( $post_id ),
+			'post_status' => 'draft',
+		)
+	);
+	add_action( 'save_post_' . CTD_POST_TYPE, 'ctd_save_document_meta', 10, 2 );
 }
 
 /**

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.5.6
+ * Version: 0.5.7
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.5.6' );
+define( 'CTD_VERSION', '0.5.7' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CTD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -567,7 +567,14 @@ function ctd_get_category_available_filter_terms( $category, $taxonomy ) {
 function ctd_get_allowed_related_term_ids_for_categories( $category_ids, $taxonomy ) {
 	$category_ids = ctd_sanitize_term_id_list( $category_ids );
 
-	if ( empty( $category_ids ) || ! in_array( $taxonomy, array( CTD_RANGE_TAXONOMY, CTD_LANGUAGE_TAXONOMY ), true ) ) {
+	if ( ! in_array( $taxonomy, array( CTD_RANGE_TAXONOMY, CTD_LANGUAGE_TAXONOMY ), true ) ) {
+		return array(
+			'restricted' => false,
+			'ids'        => array(),
+		);
+	}
+
+	if ( empty( $category_ids ) ) {
 		return array(
 			'restricted' => true,
 			'ids'        => array(),
@@ -586,6 +593,13 @@ function ctd_get_allowed_related_term_ids_for_categories( $category_ids, $taxono
 		$term_ids = CTD_RANGE_TAXONOMY === $taxonomy
 			? ctd_get_category_linked_range_ids( $category )
 			: ctd_get_category_linked_language_ids( $category );
+
+		if ( empty( $term_ids ) ) {
+			return array(
+				'restricted' => false,
+				'ids'        => array(),
+			);
+		}
 
 		$allowed_ids = array_merge( $allowed_ids, $term_ids );
 	}
@@ -706,7 +720,7 @@ function ctd_get_category_filter_relationships() {
 }
 
 /**
- * @return array<string, array<string, array<int, int>>>
+ * @return array<string, array<string, array{restricted: bool, ids: array<int>}>>
  */
 function ctd_get_category_filter_relationship_term_ids() {
 	$relationships = array();
@@ -722,9 +736,18 @@ function ctd_get_category_filter_relationship_term_ids() {
 	}
 
 	foreach ( $categories as $category ) {
+		$range_ids    = ctd_get_category_linked_range_ids( $category );
+		$language_ids = ctd_get_category_linked_language_ids( $category );
+
 		$relationships[ (string) $category->term_id ] = array(
-			'ranges'    => ctd_get_category_linked_range_ids( $category ),
-			'languages' => ctd_get_category_linked_language_ids( $category ),
+			'ranges'    => array(
+				'restricted' => ! empty( $range_ids ),
+				'ids'        => $range_ids,
+			),
+			'languages' => array(
+				'restricted' => ! empty( $language_ids ),
+				'ids'        => $language_ids,
+			),
 		);
 	}
 
@@ -765,7 +788,7 @@ function ctd_get_media_script() {
 	function renderSelection(attachment) {
 		$('#ctd_pdf_file_id').val(attachment.id || '').trigger('change');
 		$('#ctd-pdf-filename').text(attachment.filename || attachment.title || 'Document PDF');
-		$('#ctd-pdf-link').attr('href', attachment.url || '#').toggleClass('hidden', !attachment.url);
+		$('#ctd-pdf-link').attr('href', '#').addClass('hidden');
 		$('#ctd-remove-pdf').removeClass('hidden');
 		$('#ctd-pdf-placeholder').addClass('hidden');
 		$('.ctd-file-preview').addClass('has-file');
@@ -1005,31 +1028,72 @@ function ctd_get_document_edit_relationship_script() {
 		}).get();
 	}
 
-	function getAllowedIds(selectedCategoryIds, key) {
+	function normalizeRelationship(raw) {
+		var ids;
+
+		if (!raw) {
+			return {
+				restricted: false,
+				ids: []
+			};
+		}
+
+		if (Array.isArray(raw)) {
+			ids = normalizeIds(raw);
+
+			return {
+				restricted: ids.length > 0,
+				ids: ids
+			};
+		}
+
+		return {
+			restricted: !!raw.restricted,
+			ids: normalizeIds(raw.ids)
+		};
+	}
+
+	function getAvailability(selectedCategoryIds, key) {
 		var allowedIds = [];
 		var index;
 
 		if (!selectedCategoryIds.length) {
-			return [];
+			return {
+				restricted: true,
+				ids: []
+			};
 		}
 
 		for (index = 0; index < selectedCategoryIds.length; index++) {
 			var categoryId = selectedCategoryIds[index];
 			var relationship = relationships[categoryId];
-			var ids = relationship ? normalizeIds(relationship[key]) : [];
+			var availability = relationship ? normalizeRelationship(relationship[key]) : null;
 
 			if (!relationship) {
-				continue;
+				return {
+					restricted: false,
+					ids: []
+				};
 			}
 
-			ids.forEach(function(id) {
+			if (!availability.restricted) {
+				return {
+					restricted: false,
+					ids: []
+				};
+			}
+
+			availability.ids.forEach(function(id) {
 				if (allowedIds.indexOf(id) === -1) {
 					allowedIds.push(id);
 				}
 			});
 		}
 
-		return allowedIds;
+		return {
+			restricted: true,
+			ids: allowedIds
+		};
 	}
 
 	function setTermVisibility(checkbox, isVisible) {
@@ -1050,11 +1114,11 @@ function ctd_get_document_edit_relationship_script() {
 
 	function applyRelatedTerms(boxId, key) {
 		var selectedCategoryIds = getSelectedCategoryIds();
-		var allowedIds = getAllowedIds(selectedCategoryIds, key);
+		var availability = getAvailability(selectedCategoryIds, key);
 
 		getCheckboxes(boxId).each(function() {
 			var value = String(this.value);
-			var isVisible = allowedIds.indexOf(value) !== -1;
+			var isVisible = !availability.restricted || availability.ids.indexOf(value) !== -1;
 
 			setTermVisibility(this, isVisible);
 		});
