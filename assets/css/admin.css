@@ -1454,7 +1454,9 @@ body.download_document_page_ctd-settings,
 	font-weight: 700;
 }
 
-.ctd-settings-field input[type="text"] {
+.ctd-settings-field input[type="text"],
+.ctd-settings-field input[type="email"],
+.ctd-settings-field select {
 	border-color: #c8d2df;
 	border-radius: 7px;
 	min-height: 38px;
@@ -1483,6 +1485,27 @@ body.download_document_page_ctd-settings,
 .ctd-settings-page .submit .button-primary:focus {
 	background: #163ea9;
 	border-color: #163ea9;
+}
+
+.ctd-settings-actions {
+	align-items: center;
+	background: #f8fafc;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	justify-content: space-between;
+	margin-top: 18px;
+	padding: 14px;
+}
+
+.ctd-settings-status {
+	color: #5f6b7a;
+	display: grid;
+	font-size: 13px;
+	gap: 4px;
+	line-height: 1.4;
 }
 
 @media screen and (min-width: 851px) {

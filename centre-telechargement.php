@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.5.8
+ * Version: 0.5.9
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.5.8' );
+define( 'CTD_VERSION', '0.5.9' );
 define( 'CTD_ANALYTICS_SCHEMA_VERSION', '1.0.0' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -33,6 +33,9 @@ define( 'CTD_META_STATUS', '_ctd_document_status' );
 define( 'CTD_META_ACCESS_MODE', '_ctd_document_access_mode' );
 define( 'CTD_META_ALLOWED_USERS', '_ctd_document_allowed_users' );
 define( 'CTD_FRONTEND_SETTINGS_OPTION', 'ctd_frontend_settings' );
+define( 'CTD_REPORT_SETTINGS_OPTION', 'ctd_report_settings' );
+define( 'CTD_REPORT_LAST_RUN_OPTION', 'ctd_report_last_run' );
+define( 'CTD_REPORT_CRON_HOOK', 'ctd_send_scheduled_stats_report' );
 
 /**
  * @return void
@@ -614,6 +617,7 @@ function ctd_get_allowed_related_term_ids_for_categories( $category_ids, $taxono
 require_once CTD_PLUGIN_DIR . 'includes/post-types.php';
 require_once CTD_PLUGIN_DIR . 'includes/taxonomies.php';
 require_once CTD_PLUGIN_DIR . 'includes/analytics.php';
+require_once CTD_PLUGIN_DIR . 'includes/reports.php';
 require_once CTD_PLUGIN_DIR . 'includes/meta-boxes.php';
 require_once CTD_PLUGIN_DIR . 'includes/settings.php';
 require_once CTD_PLUGIN_DIR . 'includes/frontend.php';
@@ -627,10 +631,12 @@ function ctd_activate() {
 	ctd_register_taxonomy();
 	ctd_seed_default_languages( true );
 	ctd_create_analytics_table();
+	ctd_reschedule_stats_report();
 	flush_rewrite_rules();
 }
 
 function ctd_deactivate() {
+	wp_clear_scheduled_hook( CTD_REPORT_CRON_HOOK );
 	flush_rewrite_rules();
 }
 

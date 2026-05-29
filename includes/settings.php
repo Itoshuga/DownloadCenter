@@ -28,6 +28,15 @@ function ctd_register_frontend_settings() {
 			'default'           => ctd_get_frontend_settings_defaults(),
 		)
 	);
+
+	register_setting(
+		'ctd_frontend_settings',
+		CTD_REPORT_SETTINGS_OPTION,
+		array(
+			'sanitize_callback' => 'ctd_sanitize_report_settings',
+			'default'           => ctd_get_report_settings_defaults(),
+		)
+	);
 }
 
 /**
@@ -560,9 +569,17 @@ function ctd_render_settings_page() {
 	}
 
 	$settings = ctd_get_frontend_settings();
+	$report_settings = ctd_get_report_settings();
+	$manual_report_url = wp_nonce_url(
+		add_query_arg( 'action', 'ctd_send_stats_report', admin_url( 'admin-post.php' ) ),
+		'ctd_send_stats_report'
+	);
+	$next_report_timestamp = ctd_get_next_scheduled_stats_report_timestamp();
+	$last_report_run       = ctd_get_stats_report_last_run();
 	?>
 	<div class="wrap ctd-settings-page">
 		<h1><?php esc_html_e( 'Paramètres', 'centre-telechargement' ); ?></h1>
+		<?php ctd_render_stats_report_admin_notice(); ?>
 
 		<section class="ctd-tour-launch-card">
 			<div>
@@ -578,6 +595,61 @@ function ctd_render_settings_page() {
 			<?php settings_fields( 'ctd_frontend_settings' ); ?>
 
 			<div class="ctd-settings-layout">
+				<section class="ctd-settings-panel">
+					<header class="ctd-settings-panel-header">
+						<h2><?php esc_html_e( 'Rapports statistiques par email', 'centre-telechargement' ); ?></h2>
+						<p><?php esc_html_e( 'Envoyez un récapitulatif HTML des ouvertures et téléchargements de tous les documents.', 'centre-telechargement' ); ?></p>
+					</header>
+
+					<div class="ctd-settings-fields ctd-settings-fields-inline">
+						<?php
+						ctd_render_text_setting_field( 'sender_name', __( 'Nom de l’expéditeur', 'centre-telechargement' ), $report_settings['sender_name'], CTD_REPORT_SETTINGS_OPTION );
+						ctd_render_text_setting_field( 'sender_email', __( 'Email expéditeur', 'centre-telechargement' ), $report_settings['sender_email'], CTD_REPORT_SETTINGS_OPTION, 'email' );
+						ctd_render_text_setting_field( 'recipient_email', __( 'Email destinataire', 'centre-telechargement' ), $report_settings['recipient_email'], CTD_REPORT_SETTINGS_OPTION, 'email' );
+						?>
+					</div>
+
+					<div class="ctd-settings-fields ctd-settings-fields-inline">
+						<?php
+						ctd_render_select_setting_field( 'frequency', __( 'Fréquence d’envoi', 'centre-telechargement' ), $report_settings['frequency'], ctd_get_report_frequencies(), CTD_REPORT_SETTINGS_OPTION );
+						?>
+					</div>
+
+					<div class="ctd-settings-actions">
+						<a class="button button-secondary" href="<?php echo esc_url( $manual_report_url ); ?>">
+							<?php esc_html_e( 'Envoyer le rapport maintenant', 'centre-telechargement' ); ?>
+						</a>
+
+						<div class="ctd-settings-status">
+							<?php if ( 'manual' === $report_settings['frequency'] ) : ?>
+								<span><?php esc_html_e( 'Aucun envoi automatique programmé.', 'centre-telechargement' ); ?></span>
+							<?php elseif ( $next_report_timestamp ) : ?>
+								<span>
+									<?php
+									printf(
+										/* translators: %s: next report date. */
+										esc_html__( 'Prochain envoi : %s.', 'centre-telechargement' ),
+										esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_report_timestamp ) )
+									);
+									?>
+								</span>
+							<?php endif; ?>
+
+							<?php if ( ! empty( $last_report_run['occurred_at'] ) ) : ?>
+								<span>
+									<?php
+									printf(
+										/* translators: %s: last report date. */
+										esc_html__( 'Dernier envoi : %s.', 'centre-telechargement' ),
+										esc_html( mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $last_report_run['occurred_at'] ) )
+									);
+									?>
+								</span>
+							<?php endif; ?>
+						</div>
+					</div>
+				</section>
+
 				<section class="ctd-settings-panel">
 					<header class="ctd-settings-panel-header">
 						<h2><?php esc_html_e( 'Connexion front', 'centre-telechargement' ); ?></h2>
@@ -682,17 +754,42 @@ function ctd_render_color_setting_field( $key, $label, $value ) {
  * @param string $key Field key.
  * @param string $label Field label.
  * @param string $value Field value.
+ * @param string $option_name Option name.
+ * @param string $type Input type.
  * @return void
  */
-function ctd_render_text_setting_field( $key, $label, $value ) {
+function ctd_render_text_setting_field( $key, $label, $value, $option_name = CTD_FRONTEND_SETTINGS_OPTION, $type = 'text' ) {
 	?>
 	<label class="ctd-settings-field">
 		<span><?php echo esc_html( $label ); ?></span>
 		<input
-			type="text"
-			name="<?php echo esc_attr( CTD_FRONTEND_SETTINGS_OPTION . '[' . $key . ']' ); ?>"
+			type="<?php echo esc_attr( $type ); ?>"
+			name="<?php echo esc_attr( $option_name . '[' . $key . ']' ); ?>"
 			value="<?php echo esc_attr( $value ); ?>"
 		/>
+	</label>
+	<?php
+}
+
+/**
+ * @param string                $key Field key.
+ * @param string                $label Field label.
+ * @param string                $value Field value.
+ * @param array<string, string> $choices Select choices.
+ * @param string                $option_name Option name.
+ * @return void
+ */
+function ctd_render_select_setting_field( $key, $label, $value, $choices, $option_name = CTD_FRONTEND_SETTINGS_OPTION ) {
+	?>
+	<label class="ctd-settings-field">
+		<span><?php echo esc_html( $label ); ?></span>
+		<select name="<?php echo esc_attr( $option_name . '[' . $key . ']' ); ?>">
+			<?php foreach ( $choices as $choice_value => $choice_label ) : ?>
+				<option value="<?php echo esc_attr( $choice_value ); ?>" <?php selected( $value, $choice_value ); ?>>
+					<?php echo esc_html( $choice_label ); ?>
+				</option>
+			<?php endforeach; ?>
+		</select>
 	</label>
 	<?php
 }
