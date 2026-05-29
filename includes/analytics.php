@@ -40,7 +40,9 @@ function ctd_create_analytics_table() {
 		KEY document_id (document_id),
 		KEY user_id (user_id),
 		KEY event_type (event_type),
-		KEY occurred_at (occurred_at)
+		KEY occurred_at (occurred_at),
+		KEY document_event_date (document_id, event_type, occurred_at),
+		KEY document_date (document_id, occurred_at)
 	) {$charset_collate};";
 
 	dbDelta( $sql );
@@ -176,15 +178,17 @@ function ctd_get_document_daily_event_counts( $document_id, $days = 14, $event_t
 /**
  * @param int $document_id Document post ID.
  * @param int $limit Number of events to return.
+ * @param int $offset Number of events to skip.
  * @return array<int, array{user_id:int,username:string,event_type:string,event_label:string,occurred_at:string,date_label:string}>
  */
-function ctd_get_document_recent_events( $document_id, $limit = 30 ) {
+function ctd_get_document_recent_events( $document_id, $limit = 30, $offset = 0 ) {
 	global $wpdb;
 
 	ctd_maybe_create_analytics_table();
 
 	$document_id  = absint( $document_id );
 	$limit        = max( 1, min( 100, absint( $limit ) ) );
+	$offset       = max( 0, absint( $offset ) );
 	$table_name   = ctd_get_analytics_table_name();
 	$event_labels = array(
 		'open'     => __( 'Ouvert', 'centre-telechargement' ),
@@ -196,9 +200,10 @@ function ctd_get_document_recent_events( $document_id, $limit = 30 ) {
 			FROM {$table_name}
 			WHERE document_id = %d
 			ORDER BY occurred_at DESC, id DESC
-			LIMIT %d",
+			LIMIT %d OFFSET %d",
 			$document_id,
-			$limit
+			$limit,
+			$offset
 		),
 		ARRAY_A
 	);
@@ -228,4 +233,33 @@ function ctd_get_document_recent_events( $document_id, $limit = 30 ) {
 	}
 
 	return $events;
+}
+
+/**
+ * @param int $document_id Document post ID.
+ * @return int
+ */
+function ctd_count_document_events( $document_id ) {
+	global $wpdb;
+
+	ctd_maybe_create_analytics_table();
+
+	$document_id = absint( $document_id );
+
+	if ( ! $document_id ) {
+		return 0;
+	}
+
+	$table_name = ctd_get_analytics_table_name();
+
+	return absint(
+		$wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(id)
+				FROM {$table_name}
+				WHERE document_id = %d",
+				$document_id
+			)
+		)
+	);
 }

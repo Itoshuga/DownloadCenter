@@ -10,6 +10,7 @@ add_action( 'wp_ajax_ctd_send_stats_report', 'ctd_handle_ajax_stats_report' );
 add_action( CTD_REPORT_CRON_HOOK, 'ctd_send_scheduled_stats_report' );
 add_action( 'add_option_' . CTD_REPORT_SETTINGS_OPTION, 'ctd_reschedule_stats_report', 10, 0 );
 add_action( 'update_option_' . CTD_REPORT_SETTINGS_OPTION, 'ctd_reschedule_stats_report', 10, 0 );
+add_action( 'wp_mail_failed', 'ctd_capture_stats_report_mail_error' );
 
 /**
  * @return DateTimeZone
@@ -23,6 +24,35 @@ function ctd_get_report_timezone() {
  */
 function ctd_get_report_current_mysql() {
 	return ( new DateTimeImmutable( 'now', ctd_get_report_timezone() ) )->format( 'Y-m-d H:i:s' );
+}
+
+/**
+ * @return string
+ */
+function ctd_get_stats_report_lock_key() {
+	return 'ctd_stats_report_sending_lock';
+}
+
+/**
+ * @return bool
+ */
+function ctd_acquire_stats_report_lock() {
+	$lock_key = ctd_get_stats_report_lock_key();
+
+	if ( get_transient( $lock_key ) ) {
+		return false;
+	}
+
+	set_transient( $lock_key, 1, 10 * MINUTE_IN_SECONDS );
+
+	return true;
+}
+
+/**
+ * @return void
+ */
+function ctd_release_stats_report_lock() {
+	delete_transient( ctd_get_stats_report_lock_key() );
 }
 
 /**
@@ -146,6 +176,35 @@ function ctd_sanitize_email_setting( $value, $fallback ) {
 }
 
 /**
+ * Sanitizes settings used for an immediate send. Invalid emails intentionally
+ * stay invalid so the send can fail clearly instead of falling back silently.
+ *
+ * @param mixed $settings Settings candidate.
+ * @return array<string, string>
+ */
+function ctd_sanitize_report_runtime_settings( $settings ) {
+	$saved_settings = ctd_get_report_settings();
+	$frequencies    = ctd_get_report_frequencies();
+
+	if ( ! is_array( $settings ) ) {
+		$settings = array();
+	}
+
+	$frequency = isset( $settings['frequency'] ) ? sanitize_key( (string) $settings['frequency'] ) : $saved_settings['frequency'];
+
+	if ( ! isset( $frequencies[ $frequency ] ) ) {
+		$frequency = $saved_settings['frequency'];
+	}
+
+	return array(
+		'sender_name'     => ctd_sanitize_mail_name_setting( $settings['sender_name'] ?? $saved_settings['sender_name'], $saved_settings['sender_name'] ),
+		'sender_email'    => sanitize_email( (string) ( $settings['sender_email'] ?? '' ) ),
+		'recipient_email' => sanitize_email( (string) ( $settings['recipient_email'] ?? '' ) ),
+		'frequency'       => $frequency,
+	);
+}
+
+/**
  * @return void
  */
 function ctd_ensure_stats_report_scheduled() {
@@ -238,6 +297,18 @@ function ctd_get_stats_report_last_run() {
 }
 
 /**
+ * @param WP_Error $error Mail delivery error.
+ * @return void
+ */
+function ctd_capture_stats_report_mail_error( $error ) {
+	if ( empty( $GLOBALS['ctd_capture_stats_report_mail_error'] ) || ! is_wp_error( $error ) ) {
+		return;
+	}
+
+	$GLOBALS['ctd_stats_report_mail_error'] = $error->get_error_message();
+}
+
+/**
  * @return void
  */
 function ctd_send_scheduled_stats_report() {
@@ -297,8 +368,14 @@ function ctd_handle_ajax_stats_report() {
 		);
 	}
 
+	$settings = ctd_get_report_settings();
+
+	if ( isset( $_POST[ CTD_REPORT_SETTINGS_OPTION ] ) && is_array( $_POST[ CTD_REPORT_SETTINGS_OPTION ] ) ) {
+		$settings = ctd_sanitize_report_runtime_settings( wp_unslash( $_POST[ CTD_REPORT_SETTINGS_OPTION ] ) );
+	}
+
 	$started_at = microtime( true );
-	$result     = ctd_send_stats_report( 'manual', 'manual' );
+	$result     = ctd_send_stats_report( 'manual', 'manual', $settings );
 	$elapsed    = round( microtime( true ) - $started_at, 2 );
 
 	if ( is_wp_error( $result ) ) {
@@ -348,59 +425,83 @@ function ctd_render_stats_report_admin_notice() {
 }
 
 /**
- * @param string $frequency Report frequency.
- * @param string $trigger Manual or scheduled.
+ * @param string                    $frequency Report frequency.
+ * @param string                    $trigger Manual or scheduled.
+ * @param array<string, string>|null $settings Optional report settings override.
  * @return true|WP_Error
  */
-function ctd_send_stats_report( $frequency = 'manual', $trigger = 'manual' ) {
-	$settings = ctd_get_report_settings();
-
-	if ( ! is_email( $settings['sender_email'] ) || ! is_email( $settings['recipient_email'] ) ) {
-		$error = new WP_Error( 'ctd_report_invalid_email', __( 'Adresse expéditeur ou destinataire invalide.', 'centre-telechargement' ) );
+function ctd_send_stats_report( $frequency = 'manual', $trigger = 'manual', $settings = null ) {
+	if ( ! ctd_acquire_stats_report_lock() ) {
+		$error = new WP_Error( 'ctd_report_already_sending', __( 'Un rapport est déjà en cours de génération. Patientez quelques instants avant de relancer l’envoi.', 'centre-telechargement' ) );
 		ctd_store_stats_report_last_run( 'error', $trigger, $error->get_error_message() );
 		return $error;
 	}
 
-	$report  = ctd_get_stats_report_data( $frequency );
-	$subject = sprintf(
-		/* translators: %s: report period label. */
-		__( 'Rapport statistiques documents - %s', 'centre-telechargement' ),
-		$report['period']['label']
-	);
-	$html              = ctd_render_stats_report_email_html( $report, $settings );
-	$report_attachment = ctd_create_stats_report_spreadsheet_attachment( $report );
+	$report_attachment = '';
 
-	if ( is_wp_error( $report_attachment ) ) {
-		ctd_store_stats_report_last_run( 'error', $trigger, $report_attachment->get_error_message() );
-		return $report_attachment;
+	try {
+		$settings = is_array( $settings ) ? ctd_sanitize_report_runtime_settings( $settings ) : ctd_get_report_settings();
+
+		if ( ! is_email( $settings['sender_email'] ) || ! is_email( $settings['recipient_email'] ) ) {
+			$error = new WP_Error( 'ctd_report_invalid_email', __( 'Adresse expéditeur ou destinataire invalide.', 'centre-telechargement' ) );
+			ctd_store_stats_report_last_run( 'error', $trigger, $error->get_error_message() );
+			return $error;
+		}
+
+		$report  = ctd_get_stats_report_data( $frequency );
+		$subject = sprintf(
+			/* translators: %s: report period label. */
+			__( 'Rapport statistiques documents - %s', 'centre-telechargement' ),
+			$report['period']['label']
+		);
+		$html              = ctd_render_stats_report_email_html( $report, $settings );
+		$report_attachment = ctd_create_stats_report_spreadsheet_attachment( $report );
+
+		if ( is_wp_error( $report_attachment ) ) {
+			ctd_store_stats_report_last_run( 'error', $trigger, $report_attachment->get_error_message() );
+			return $report_attachment;
+		}
+
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+			sprintf( 'From: %1$s <%2$s>', $settings['sender_name'], $settings['sender_email'] ),
+			sprintf( 'Reply-To: %1$s <%2$s>', $settings['sender_name'], $settings['sender_email'] ),
+		);
+
+		$GLOBALS['ctd_capture_stats_report_mail_error'] = true;
+		$GLOBALS['ctd_stats_report_mail_error']         = '';
+		$sent = wp_mail( $settings['recipient_email'], $subject, $html, $headers, array( $report_attachment ) );
+		$GLOBALS['ctd_capture_stats_report_mail_error'] = false;
+
+		if ( ! $sent ) {
+			$mail_error_message = ! empty( $GLOBALS['ctd_stats_report_mail_error'] )
+				? (string) $GLOBALS['ctd_stats_report_mail_error']
+				: __( 'WordPress n’a pas confirmé l’envoi du rapport.', 'centre-telechargement' );
+			$error              = new WP_Error( 'ctd_report_mail_failed', $mail_error_message );
+			ctd_store_stats_report_last_run( 'error', $trigger, $error->get_error_message() );
+			return $error;
+		}
+
+		ctd_store_stats_report_last_run(
+			'sent',
+			$trigger,
+			sprintf(
+				/* translators: %s: recipient email. */
+				__( 'Rapport envoyé à %s.', 'centre-telechargement' ),
+				$settings['recipient_email']
+			)
+		);
+
+		return true;
+	} finally {
+		$GLOBALS['ctd_capture_stats_report_mail_error'] = false;
+
+		if ( $report_attachment && ! is_wp_error( $report_attachment ) ) {
+			ctd_delete_stats_report_attachment( $report_attachment );
+		}
+
+		ctd_release_stats_report_lock();
 	}
-
-	$headers = array(
-		'Content-Type: text/html; charset=UTF-8',
-		sprintf( 'From: %1$s <%2$s>', $settings['sender_name'], $settings['sender_email'] ),
-		sprintf( 'Reply-To: %1$s <%2$s>', $settings['sender_name'], $settings['sender_email'] ),
-	);
-	$sent    = wp_mail( $settings['recipient_email'], $subject, $html, $headers, array( $report_attachment ) );
-
-	ctd_delete_stats_report_attachment( $report_attachment );
-
-	if ( ! $sent ) {
-		$error = new WP_Error( 'ctd_report_mail_failed', __( 'WordPress n’a pas confirmé l’envoi du rapport.', 'centre-telechargement' ) );
-		ctd_store_stats_report_last_run( 'error', $trigger, $error->get_error_message() );
-		return $error;
-	}
-
-	ctd_store_stats_report_last_run(
-		'sent',
-		$trigger,
-		sprintf(
-			/* translators: %s: recipient email. */
-			__( 'Rapport envoyé à %s.', 'centre-telechargement' ),
-			$settings['recipient_email']
-		)
-	);
-
-	return true;
 }
 
 /**
@@ -427,105 +528,407 @@ function ctd_store_stats_report_last_run( $status, $trigger, $message ) {
  * @return string|WP_Error
  */
 function ctd_create_stats_report_spreadsheet_attachment( $report ) {
-	$upload_dir = wp_upload_dir();
-
-	if ( ! empty( $upload_dir['error'] ) ) {
-		return new WP_Error( 'ctd_report_attachment_upload_dir', $upload_dir['error'] );
-	}
-
-	$directory = trailingslashit( $upload_dir['basedir'] ) . 'ctd-reports';
+	$directory = ctd_get_stats_report_temp_directory();
 
 	if ( ! wp_mkdir_p( $directory ) ) {
 		return new WP_Error( 'ctd_report_attachment_directory', __( 'Impossible de créer le dossier temporaire du rapport.', 'centre-telechargement' ) );
 	}
 
-	$filename  = sanitize_file_name( 'rapport-statistiques-documents-' . ctd_format_report_timestamp( time(), 'Y-m-d-His' ) . '.xls' );
-	$file_path = trailingslashit( $directory ) . $filename;
-	$html      = ctd_render_stats_report_spreadsheet_html( $report );
-	$written   = file_put_contents( $file_path, $html ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	ctd_cleanup_stats_report_temp_files();
 
-	if ( false === $written ) {
-		return new WP_Error( 'ctd_report_attachment_write', __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' ) );
+	$xlsx_attachment = ctd_create_stats_report_xlsx_attachment( $report, $directory );
+
+	if ( ! is_wp_error( $xlsx_attachment ) ) {
+		return $xlsx_attachment;
+	}
+
+	return ctd_create_stats_report_csv_attachment( $report, $directory );
+}
+
+/**
+ * @return string
+ */
+function ctd_get_stats_report_temp_directory() {
+	return trailingslashit( get_temp_dir() ) . 'ctd-reports';
+}
+
+/**
+ * @param array<string, mixed> $report Report data.
+ * @param string               $directory Report temp directory.
+ * @return string|WP_Error
+ */
+function ctd_create_stats_report_xlsx_attachment( $report, $directory ) {
+	$filename  = sanitize_file_name( 'rapport-statistiques-documents-' . ctd_format_report_timestamp( time(), 'Y-m-d-His' ) . '.xlsx' );
+	$file_path = trailingslashit( $directory ) . $filename;
+	$parts     = array(
+		'[Content_Types].xml'         => ctd_render_stats_report_xlsx_content_types(),
+		'_rels/.rels'                => ctd_render_stats_report_xlsx_root_rels(),
+		'docProps/app.xml'           => ctd_render_stats_report_xlsx_app_props(),
+		'docProps/core.xml'          => ctd_render_stats_report_xlsx_core_props(),
+		'xl/workbook.xml'            => ctd_render_stats_report_xlsx_workbook(),
+		'xl/_rels/workbook.xml.rels' => ctd_render_stats_report_xlsx_workbook_rels(),
+		'xl/styles.xml'              => ctd_render_stats_report_xlsx_styles(),
+		'xl/worksheets/sheet1.xml'   => ctd_render_stats_report_xlsx_sheet( $report ),
+	);
+	$created   = ctd_create_stats_report_zip_archive( $file_path, $parts );
+
+	if ( is_wp_error( $created ) ) {
+		ctd_delete_stats_report_attachment( $file_path );
+		return $created;
 	}
 
 	return $file_path;
 }
 
 /**
+ * @param string                $file_path Archive path.
+ * @param array<string, string> $parts Relative file paths and contents.
+ * @return true|WP_Error
+ */
+function ctd_create_stats_report_zip_archive( $file_path, $parts ) {
+	if ( class_exists( 'ZipArchive' ) ) {
+		$zip = new ZipArchive();
+
+		if ( true !== $zip->open( $file_path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
+			return new WP_Error( 'ctd_report_attachment_write', __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' ) );
+		}
+
+		foreach ( $parts as $relative_path => $content ) {
+			if ( ! $zip->addFromString( $relative_path, $content ) ) {
+				$zip->close();
+				return new WP_Error( 'ctd_report_attachment_write', __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' ) );
+			}
+		}
+
+		if ( ! $zip->close() || ! file_exists( $file_path ) ) {
+			return new WP_Error( 'ctd_report_attachment_write', __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' ) );
+		}
+
+		return true;
+	}
+
+	if ( ! class_exists( 'PclZip' ) ) {
+		$pclzip_path = ABSPATH . 'wp-admin/includes/class-pclzip.php';
+
+		if ( file_exists( $pclzip_path ) ) {
+			require_once $pclzip_path;
+		}
+	}
+
+	if ( class_exists( 'PclZip' ) ) {
+		return ctd_create_stats_report_zip_archive_with_pclzip( $file_path, $parts );
+	}
+
+	return new WP_Error( 'ctd_report_zip_unavailable', __( 'Le serveur ne permet pas de générer un fichier Excel.', 'centre-telechargement' ) );
+}
+
+/**
+ * @param string                $file_path Archive path.
+ * @param array<string, string> $parts Relative file paths and contents.
+ * @return true|WP_Error
+ */
+function ctd_create_stats_report_zip_archive_with_pclzip( $file_path, $parts ) {
+	$source_dir = trailingslashit( dirname( $file_path ) ) . 'xlsx-' . wp_generate_uuid4();
+	$files      = array();
+
+	if ( ! wp_mkdir_p( $source_dir ) ) {
+		return new WP_Error( 'ctd_report_attachment_directory', __( 'Impossible de créer le dossier temporaire du rapport.', 'centre-telechargement' ) );
+	}
+
+	foreach ( $parts as $relative_path => $content ) {
+		$relative_path = str_replace( array( '\\', '../' ), array( '/', '' ), (string) $relative_path );
+		$target_path   = trailingslashit( $source_dir ) . $relative_path;
+		$target_dir    = dirname( $target_path );
+
+		if ( ! wp_mkdir_p( $target_dir ) ) {
+			ctd_delete_stats_report_directory( $source_dir );
+			return new WP_Error( 'ctd_report_attachment_directory', __( 'Impossible de créer le dossier temporaire du rapport.', 'centre-telechargement' ) );
+		}
+
+		if ( false === file_put_contents( $target_path, $content ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			ctd_delete_stats_report_directory( $source_dir );
+			return new WP_Error( 'ctd_report_attachment_write', __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' ) );
+		}
+
+		$files[] = wp_normalize_path( $target_path );
+	}
+
+	$archive = new PclZip( $file_path );
+	$result  = $archive->create( $files, PCLZIP_OPT_REMOVE_PATH, wp_normalize_path( $source_dir ) );
+
+	ctd_delete_stats_report_directory( $source_dir );
+
+	if ( 0 === $result || ! file_exists( $file_path ) ) {
+		$message = method_exists( $archive, 'errorInfo' ) ? $archive->errorInfo( true ) : __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' );
+		return new WP_Error( 'ctd_report_attachment_write', $message );
+	}
+
+	return true;
+}
+
+/**
+ * @param array<string, mixed> $report Report data.
+ * @param string               $directory Report temp directory.
+ * @return string|WP_Error
+ */
+function ctd_create_stats_report_csv_attachment( $report, $directory ) {
+	$filename  = sanitize_file_name( 'rapport-statistiques-documents-' . ctd_format_report_timestamp( time(), 'Y-m-d-His' ) . '.csv' );
+	$file_path = trailingslashit( $directory ) . $filename;
+	$handle    = fopen( $file_path, 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+
+	if ( ! $handle ) {
+		return new WP_Error( 'ctd_report_attachment_write', __( 'Impossible de générer le fichier du rapport.', 'centre-telechargement' ) );
+	}
+
+	fwrite( $handle, "\xEF\xBB\xBF" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+	fputcsv( $handle, array( __( 'Document', 'centre-telechargement' ), __( 'Ouverture', 'centre-telechargement' ), __( 'Téléchargement', 'centre-telechargement' ), __( 'Total', 'centre-telechargement' ), __( 'Dernière activité', 'centre-telechargement' ) ), ';' );
+
+	$rows = isset( $report['rows'] ) && is_array( $report['rows'] ) ? $report['rows'] : array();
+
+	foreach ( $rows as $row ) {
+		$period_total = absint( $row['period_open'] ?? 0 ) + absint( $row['period_download'] ?? 0 );
+
+		fputcsv(
+			$handle,
+			array(
+				(string) ( $row['title'] ?? '' ),
+				absint( $row['period_open'] ?? 0 ),
+				absint( $row['period_download'] ?? 0 ),
+				$period_total,
+				(string) ( $row['last_event_label'] ?? '' ),
+			),
+			';'
+		);
+	}
+
+	fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
+	return $file_path;
+}
+
+/**
+ * @return void
+ */
+function ctd_cleanup_stats_report_temp_files() {
+	$directory = ctd_get_stats_report_temp_directory();
+	$files     = glob( trailingslashit( $directory ) . 'rapport-statistiques-documents-*.*' );
+
+	if ( ! is_array( $files ) ) {
+		return;
+	}
+
+	foreach ( $files as $file ) {
+		if ( is_file( $file ) && filemtime( $file ) && filemtime( $file ) < time() - DAY_IN_SECONDS ) {
+			ctd_delete_stats_report_attachment( $file );
+		}
+	}
+}
+
+/**
+ * @param string $directory Directory path.
+ * @return void
+ */
+function ctd_delete_stats_report_directory( $directory ) {
+	$base = realpath( ctd_get_stats_report_temp_directory() );
+	$dir  = realpath( $directory );
+
+	if ( ! $base || ! $dir ) {
+		return;
+	}
+
+	$base = trailingslashit( wp_normalize_path( $base ) );
+	$dir  = wp_normalize_path( $dir );
+
+	if ( 0 !== strpos( trailingslashit( $dir ), $base ) ) {
+		return;
+	}
+
+	$iterator = new RecursiveIteratorIterator(
+		new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ),
+		RecursiveIteratorIterator::CHILD_FIRST
+	);
+
+	foreach ( $iterator as $item ) {
+		if ( $item->isDir() ) {
+			rmdir( $item->getPathname() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+		} else {
+			unlink( $item->getPathname() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+		}
+	}
+
+	rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+}
+
+/**
+ * @param string $value Value to escape.
+ * @return string
+ */
+function ctd_xlsx_escape( $value ) {
+	return htmlspecialchars( (string) $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
+}
+
+/**
+ * @param string     $reference Cell reference.
+ * @param string|int $value Cell value.
+ * @param int        $style Style index.
+ * @param bool       $numeric Whether the value is numeric.
+ * @return string
+ */
+function ctd_render_xlsx_cell( $reference, $value, $style = 0, $numeric = false ) {
+	$reference = ctd_xlsx_escape( $reference );
+	$style     = absint( $style );
+
+	if ( $numeric ) {
+		return sprintf( '<c r="%1$s" s="%2$d"><v>%3$d</v></c>', $reference, $style, absint( $value ) );
+	}
+
+	return sprintf(
+		'<c r="%1$s" s="%2$d" t="inlineStr"><is><t>%3$s</t></is></c>',
+		$reference,
+		$style,
+		ctd_xlsx_escape( $value )
+	);
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_content_types() {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+		. '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+		. '<Default Extension="xml" ContentType="application/xml"/>'
+		. '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'
+		. '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
+		. '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+		. '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+		. '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+		. '</Types>';
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_root_rels() {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+		. '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+		. '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'
+		. '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'
+		. '</Relationships>';
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_app_props() {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
+		. '<Application>Centre de Téléchargement</Application>'
+		. '</Properties>';
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_core_props() {
+	$generated = gmdate( 'Y-m-d\TH:i:s\Z' );
+
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+		. '<dc:title>Rapport statistiques documents</dc:title>'
+		. '<dc:creator>Centre de Téléchargement</dc:creator>'
+		. '<cp:lastModifiedBy>Centre de Téléchargement</cp:lastModifiedBy>'
+		. '<dcterms:created xsi:type="dcterms:W3CDTF">' . ctd_xlsx_escape( $generated ) . '</dcterms:created>'
+		. '<dcterms:modified xsi:type="dcterms:W3CDTF">' . ctd_xlsx_escape( $generated ) . '</dcterms:modified>'
+		. '</cp:coreProperties>';
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_workbook() {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+		. '<sheets><sheet name="Statistiques" sheetId="1" r:id="rId1"/></sheets>'
+		. '</workbook>';
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_workbook_rels() {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+		. '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+		. '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+		. '</Relationships>';
+}
+
+/**
+ * @return string
+ */
+function ctd_render_stats_report_xlsx_styles() {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+		. '<fonts count="3"><font><sz val="11"/><color rgb="FF10233F"/><name val="Arial"/></font><font><b/><sz val="12"/><color rgb="FFFFFFFF"/><name val="Arial"/></font><font><b/><sz val="11"/><color rgb="FF10233F"/><name val="Arial"/></font></fonts>'
+		. '<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF10233F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF11A9CF"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF8FBFD"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEDF8FB"/><bgColor indexed="64"/></patternFill></fill></fills>'
+		. '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD7E4EC"/></left><right style="thin"><color rgb="FFD7E4EC"/></right><top style="thin"><color rgb="FFD7E4EC"/></top><bottom style="thin"><color rgb="FFD7E4EC"/></bottom><diagonal/></border></borders>'
+		. '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+		. '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/><xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/><xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"/></cellXfs>'
+		. '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+		. '</styleSheet>';
+}
+
+/**
  * @param array<string, mixed> $report Report data.
  * @return string
  */
-function ctd_render_stats_report_spreadsheet_html( $report ) {
+function ctd_render_stats_report_xlsx_sheet( $report ) {
 	$period_label = isset( $report['period']['label'] ) ? (string) $report['period']['label'] : '';
 	$generated    = isset( $report['generated'] ) ? (string) $report['generated'] : '';
 	$rows         = isset( $report['rows'] ) && is_array( $report['rows'] ) ? $report['rows'] : array();
+	$row_index    = 1;
+	$sheet_rows   = array();
 
-	ob_start();
-	?>
-	<html>
-	<head>
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<style>
-			body { font-family: Arial, Helvetica, sans-serif; color: #10233f; }
-			.report-title { background: #10233f; color: #ffffff; font-size: 20px; font-weight: 700; }
-			.report-meta-label { background: #edf8fb; color: #0b88ad; font-weight: 700; }
-			.report-meta-value { background: #f8fbfd; color: #10233f; }
-			.report-head { background: #11a9cf; color: #ffffff; font-weight: 700; text-align: center; }
-			.report-head-document { text-align: left; }
-			.report-row-even { background: #ffffff; }
-			.report-row-odd { background: #f8fbfd; }
-			.report-document { font-weight: 700; text-align: left; }
-			.report-number { text-align: center; }
-			.report-total { background: #edf8fb; color: #0b88ad; font-weight: 700; text-align: center; }
-			.report-date { color: #5b6d7d; }
-			td, th { border: 1px solid #d7e4ec; padding: 8px; vertical-align: middle; }
-		</style>
-	</head>
-	<body>
-		<table cellspacing="0" cellpadding="0">
-			<tr>
-				<td class="report-title" colspan="5"><?php esc_html_e( 'Rapport statistiques documents', 'centre-telechargement' ); ?></td>
-			</tr>
-			<tr>
-				<td class="report-meta-label"><?php esc_html_e( 'Période', 'centre-telechargement' ); ?></td>
-				<td class="report-meta-value" colspan="4"><?php echo esc_html( $period_label ); ?></td>
-			</tr>
-			<tr>
-				<td class="report-meta-label"><?php esc_html_e( 'Généré le', 'centre-telechargement' ); ?></td>
-				<td class="report-meta-value" colspan="4"><?php echo esc_html( $generated ); ?></td>
-			</tr>
-			<tr>
-				<td colspan="5"></td>
-			</tr>
-			<tr>
-				<th class="report-head report-head-document"><?php esc_html_e( 'Document', 'centre-telechargement' ); ?></th>
-				<th class="report-head"><?php esc_html_e( 'Ouverture', 'centre-telechargement' ); ?></th>
-				<th class="report-head"><?php esc_html_e( 'Téléchargement', 'centre-telechargement' ); ?></th>
-				<th class="report-head"><?php esc_html_e( 'Total', 'centre-telechargement' ); ?></th>
-				<th class="report-head"><?php esc_html_e( 'Dernière activité', 'centre-telechargement' ); ?></th>
-			</tr>
-			<?php if ( empty( $rows ) ) : ?>
-				<tr>
-					<td colspan="5"><?php esc_html_e( 'Aucun document trouvé.', 'centre-telechargement' ); ?></td>
-				</tr>
-			<?php else : ?>
-				<?php foreach ( $rows as $index => $row ) : ?>
-					<?php $period_total = absint( $row['period_open'] ) + absint( $row['period_download'] ); ?>
-					<tr class="<?php echo 0 === $index % 2 ? 'report-row-even' : 'report-row-odd'; ?>">
-						<td class="report-document"><?php echo esc_html( $row['title'] ?? '' ); ?></td>
-						<td class="report-number"><?php echo esc_html( absint( $row['period_open'] ?? 0 ) ); ?></td>
-						<td class="report-number"><?php echo esc_html( absint( $row['period_download'] ?? 0 ) ); ?></td>
-						<td class="report-total"><?php echo esc_html( $period_total ); ?></td>
-						<td class="report-date"><?php echo esc_html( $row['last_event_label'] ?? '' ); ?></td>
-					</tr>
-				<?php endforeach; ?>
-			<?php endif; ?>
-		</table>
-	</body>
-	</html>
-	<?php
+	$sheet_rows[] = '<row r="' . $row_index . '">' . ctd_render_xlsx_cell( 'A' . $row_index, __( 'Rapport statistiques documents', 'centre-telechargement' ), 1 ) . '</row>';
+	$row_index++;
+	$sheet_rows[] = '<row r="' . $row_index . '">' . ctd_render_xlsx_cell( 'A' . $row_index, __( 'Période', 'centre-telechargement' ), 2 ) . ctd_render_xlsx_cell( 'B' . $row_index, $period_label, 3 ) . '</row>';
+	$row_index++;
+	$sheet_rows[] = '<row r="' . $row_index . '">' . ctd_render_xlsx_cell( 'A' . $row_index, __( 'Généré le', 'centre-telechargement' ), 2 ) . ctd_render_xlsx_cell( 'B' . $row_index, $generated, 3 ) . '</row>';
+	$row_index += 2;
+	$sheet_rows[] = '<row r="' . $row_index . '">'
+		. ctd_render_xlsx_cell( 'A' . $row_index, __( 'Document', 'centre-telechargement' ), 4 )
+		. ctd_render_xlsx_cell( 'B' . $row_index, __( 'Ouverture', 'centre-telechargement' ), 4 )
+		. ctd_render_xlsx_cell( 'C' . $row_index, __( 'Téléchargement', 'centre-telechargement' ), 4 )
+		. ctd_render_xlsx_cell( 'D' . $row_index, __( 'Total', 'centre-telechargement' ), 4 )
+		. ctd_render_xlsx_cell( 'E' . $row_index, __( 'Dernière activité', 'centre-telechargement' ), 4 )
+		. '</row>';
+	$row_index++;
 
-	return trim( ob_get_clean() );
+	if ( empty( $rows ) ) {
+		$sheet_rows[] = '<row r="' . $row_index . '">' . ctd_render_xlsx_cell( 'A' . $row_index, __( 'Aucun document trouvé.', 'centre-telechargement' ), 8 ) . '</row>';
+	} else {
+		foreach ( $rows as $row ) {
+			$period_total = absint( $row['period_open'] ?? 0 ) + absint( $row['period_download'] ?? 0 );
+
+			$sheet_rows[] = '<row r="' . $row_index . '">'
+				. ctd_render_xlsx_cell( 'A' . $row_index, (string) ( $row['title'] ?? '' ), 5 )
+				. ctd_render_xlsx_cell( 'B' . $row_index, absint( $row['period_open'] ?? 0 ), 6, true )
+				. ctd_render_xlsx_cell( 'C' . $row_index, absint( $row['period_download'] ?? 0 ), 6, true )
+				. ctd_render_xlsx_cell( 'D' . $row_index, $period_total, 7, true )
+				. ctd_render_xlsx_cell( 'E' . $row_index, (string) ( $row['last_event_label'] ?? '' ), 8 )
+				. '</row>';
+			$row_index++;
+		}
+	}
+
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		. '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+		. '<cols><col min="1" max="1" width="44" customWidth="1"/><col min="2" max="4" width="16" customWidth="1"/><col min="5" max="5" width="26" customWidth="1"/></cols>'
+		. '<sheetData>' . implode( '', $sheet_rows ) . '</sheetData>'
+		. '<mergeCells count="3"><mergeCell ref="A1:E1"/><mergeCell ref="B2:E2"/><mergeCell ref="B3:E3"/></mergeCells>'
+		. '</worksheet>';
 }
 
 /**
@@ -533,8 +936,22 @@ function ctd_render_stats_report_spreadsheet_html( $report ) {
  * @return void
  */
 function ctd_delete_stats_report_attachment( $file_path ) {
-	if ( $file_path && file_exists( $file_path ) ) {
-		unlink( $file_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+	$directory = realpath( ctd_get_stats_report_temp_directory() );
+	$file      = $file_path ? realpath( $file_path ) : false;
+
+	if ( ! $directory || ! $file ) {
+		return;
+	}
+
+	$directory = trailingslashit( wp_normalize_path( $directory ) );
+	$file      = wp_normalize_path( $file );
+
+	if ( 0 !== strpos( $file, $directory ) ) {
+		return;
+	}
+
+	if ( file_exists( $file ) ) {
+		unlink( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
 	}
 }
 
@@ -575,7 +992,6 @@ function ctd_get_stats_report_data( $frequency ) {
 		$rows[] = array(
 			'id'              => $document_id,
 			'title'           => get_the_title( $document ),
-			'edit_url'        => get_edit_post_link( $document_id, '' ),
 			'status'          => $status_object ? $status_object->label : $document->post_status,
 			'categories'      => implode( ', ', $category_names ),
 			'period_open'     => $period_open,
@@ -873,7 +1289,7 @@ function ctd_render_stats_report_email_html( $report, $settings ) {
 							<td style="padding:12px 30px 28px;">
 								<h2 style="margin:0 0 8px;color:#10233f;font-size:18px;line-height:1.3;font-weight:800;"><?php esc_html_e( 'Top 5 des fichiers les plus téléchargés', 'centre-telechargement' ); ?></h2>
 								<p style="margin:0 0 16px;color:#5b6d7d;font-size:13px;line-height:1.5;">
-									<?php esc_html_e( 'L’email affiche uniquement les 5 documents les plus téléchargés sur la période. Consultez le fichier Excel joint pour voir le détail de tous les documents.', 'centre-telechargement' ); ?>
+									<?php esc_html_e( 'L’email affiche uniquement les 5 documents les plus téléchargés sur la période. Consultez le fichier joint pour voir le détail de tous les documents.', 'centre-telechargement' ); ?>
 								</p>
 								<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #d7e4ec;border-radius:10px;overflow:hidden;">
 									<thead>
@@ -943,16 +1359,11 @@ function ctd_render_stats_report_email_metric( $label, $value ) {
  */
 function ctd_render_stats_report_email_row( $row ) {
 	$total_period = absint( $row['period_open'] ) + absint( $row['period_download'] );
-	$edit_url     = ! empty( $row['edit_url'] ) ? (string) $row['edit_url'] : '';
 	?>
 	<tr>
 		<td style="padding:13px 12px;border-bottom:1px solid #e0ebf1;vertical-align:top;">
 			<div style="font-size:14px;font-weight:800;color:#10233f;line-height:1.35;">
-				<?php if ( $edit_url ) : ?>
-					<a href="<?php echo esc_url( $edit_url ); ?>" style="color:#10233f;text-decoration:none;"><?php echo esc_html( $row['title'] ); ?></a>
-				<?php else : ?>
-					<?php echo esc_html( $row['title'] ); ?>
-				<?php endif; ?>
+				<?php echo esc_html( $row['title'] ); ?>
 			</div>
 		</td>
 		<td align="center" style="padding:13px 12px;border-bottom:1px solid #e0ebf1;vertical-align:top;color:#10233f;font-weight:800;"><?php echo esc_html( number_format_i18n( absint( $row['period_open'] ) ) ); ?></td>

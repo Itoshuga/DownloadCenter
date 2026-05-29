@@ -348,13 +348,34 @@ function ctd_get_smooth_chart_path( $points ) {
 }
 
 /**
+ * @param int $post_id Document post ID.
+ * @param int $page Page number.
+ * @return string
+ */
+function ctd_get_document_history_page_url( $post_id, $page ) {
+	$url = get_edit_post_link( absint( $post_id ), '' );
+
+	if ( ! $url ) {
+		return '';
+	}
+
+	return add_query_arg( 'ctd_history_page', max( 1, absint( $page ) ), $url ) . '#ctd_document_analytics';
+}
+
+/**
  * @param WP_Post $post Current post.
  * @return void
  */
 function ctd_render_document_analytics_meta_box( $post ) {
 	$open_counts     = ctd_get_document_daily_event_counts( $post->ID, 14, 'open' );
 	$download_counts = ctd_get_document_daily_event_counts( $post->ID, 14, 'download' );
-	$recent_events   = ctd_get_document_recent_events( $post->ID, 30 );
+	$history_per_page = 10;
+	$history_total    = ctd_count_document_events( $post->ID );
+	$history_pages    = max( 1, (int) ceil( $history_total / $history_per_page ) );
+	$history_page     = isset( $_GET['ctd_history_page'] ) ? absint( wp_unslash( $_GET['ctd_history_page'] ) ) : 1;
+	$history_page     = max( 1, min( $history_page, $history_pages ) );
+	$history_offset   = ( $history_page - 1 ) * $history_per_page;
+	$recent_events    = ctd_get_document_recent_events( $post->ID, $history_per_page, $history_offset );
 	$width           = 760;
 	$height          = 300;
 	$padding_top     = 22;
@@ -538,6 +559,38 @@ function ctd_render_document_analytics_meta_box( $post ) {
 							</tbody>
 						</table>
 					</div>
+					<?php if ( $history_pages > 1 ) : ?>
+						<nav class="ctd-analytics-pagination" aria-label="<?php esc_attr_e( 'Pagination de l’historique des accès', 'centre-telechargement' ); ?>">
+							<span class="ctd-analytics-pagination-status">
+								<?php
+								printf(
+									/* translators: 1: current page, 2: total pages, 3: total event count. */
+									esc_html__( 'Page %1$d sur %2$d · %3$d accès au total', 'centre-telechargement' ),
+									absint( $history_page ),
+									absint( $history_pages ),
+									absint( $history_total )
+								);
+								?>
+							</span>
+							<div class="ctd-analytics-pagination-actions">
+								<?php if ( $history_page > 1 ) : ?>
+									<a class="button button-small" href="<?php echo esc_url( ctd_get_document_history_page_url( $post->ID, $history_page - 1 ) ); ?>">
+										<?php esc_html_e( 'Précédent', 'centre-telechargement' ); ?>
+									</a>
+								<?php else : ?>
+									<span class="button button-small disabled" aria-disabled="true"><?php esc_html_e( 'Précédent', 'centre-telechargement' ); ?></span>
+								<?php endif; ?>
+
+								<?php if ( $history_page < $history_pages ) : ?>
+									<a class="button button-small" href="<?php echo esc_url( ctd_get_document_history_page_url( $post->ID, $history_page + 1 ) ); ?>">
+										<?php esc_html_e( 'Suivant', 'centre-telechargement' ); ?>
+									</a>
+								<?php else : ?>
+									<span class="button button-small disabled" aria-disabled="true"><?php esc_html_e( 'Suivant', 'centre-telechargement' ); ?></span>
+								<?php endif; ?>
+							</div>
+						</nav>
+					<?php endif; ?>
 				<?php endif; ?>
 			</div>
 		</div>

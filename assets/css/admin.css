@@ -1089,6 +1089,41 @@ body.download_document_page_ctd-settings,
 	border-bottom: 0;
 }
 
+.ctd-analytics-pagination {
+	align-items: center;
+	background: #f8fafc;
+	border: 1px solid #dfe5ef;
+	border-radius: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	justify-content: space-between;
+	padding: 10px 12px;
+}
+
+.ctd-analytics-pagination-status {
+	color: #475569;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.ctd-analytics-pagination-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.ctd-analytics-pagination-actions .button {
+	border-radius: 7px;
+	font-weight: 700;
+}
+
+.ctd-analytics-pagination-actions .button.disabled {
+	background: #f1f5f9;
+	border-color: #dfe5ef;
+	color: #94a3b8;
+	pointer-events: none;
+}
+
 .ctd-event-badge {
 	border: 1px solid transparent;
 	border-radius: 999px;

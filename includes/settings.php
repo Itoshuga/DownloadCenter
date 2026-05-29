@@ -74,6 +74,7 @@ function ctd_get_report_modal_script() {
 		array(
 			'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
 			'action'         => 'ctd_send_stats_report',
+			'settingsOption' => CTD_REPORT_SETTINGS_OPTION,
 			'sendingTitle'   => __( 'Envoi du rapport en cours', 'centre-telechargement' ),
 			'sendingMessage' => __( 'Génération du fichier de statistiques et envoi de l’email. Gardez cette fenêtre ouverte quelques instants.', 'centre-telechargement' ),
 			'successTitle'   => __( 'Rapport envoyé', 'centre-telechargement' ),
@@ -132,6 +133,24 @@ function ctd_get_report_modal_script() {
 		if (shouldReload) {
 			window.location.reload();
 		}
+	}
+
+	function appendCurrentReportSettings(formData) {
+		var fields = document.querySelectorAll('[name^="' + config.settingsOption + '["]');
+
+		fields.forEach(function(field) {
+			var type = field.type ? String(field.type).toLowerCase() : '';
+
+			if (!field.name || field.disabled) {
+				return;
+			}
+
+			if ((type === 'checkbox' || type === 'radio') && !field.checked) {
+				return;
+			}
+
+			formData.append(field.name, field.value);
+		});
 	}
 
 	document.addEventListener('DOMContentLoaded', function() {
@@ -193,6 +212,7 @@ function ctd_get_report_modal_script() {
 			formData = new URLSearchParams();
 			formData.append('action', config.action);
 			formData.append('_ajax_nonce', sendButton.getAttribute('data-nonce') || '');
+			appendCurrentReportSettings(formData);
 
 			fetch(config.ajaxUrl, {
 				method: 'POST',
