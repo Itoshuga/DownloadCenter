@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'admin_init', 'ctd_ensure_stats_report_scheduled' );
 add_action( 'admin_post_ctd_send_stats_report', 'ctd_handle_manual_stats_report' );
+add_action( 'wp_ajax_ctd_send_stats_report', 'ctd_handle_ajax_stats_report' );
 add_action( CTD_REPORT_CRON_HOOK, 'ctd_send_scheduled_stats_report' );
 add_action( 'add_option_' . CTD_REPORT_SETTINGS_OPTION, 'ctd_reschedule_stats_report', 10, 0 );
 add_action( 'update_option_' . CTD_REPORT_SETTINGS_OPTION, 'ctd_reschedule_stats_report', 10, 0 );
@@ -272,6 +273,55 @@ function ctd_handle_manual_stats_report() {
 
 	wp_safe_redirect( $redirect );
 	exit;
+}
+
+/**
+ * @return void
+ */
+function ctd_handle_ajax_stats_report() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error(
+			array(
+				'message' => __( 'Accès refusé.', 'centre-telechargement' ),
+			),
+			403
+		);
+	}
+
+	if ( ! check_ajax_referer( 'ctd_send_stats_report', '_ajax_nonce', false ) ) {
+		wp_send_json_error(
+			array(
+				'message' => __( 'La vérification de sécurité a échoué. Rechargez la page puis réessayez.', 'centre-telechargement' ),
+			),
+			403
+		);
+	}
+
+	$started_at = microtime( true );
+	$result     = ctd_send_stats_report( 'manual', 'manual' );
+	$elapsed    = round( microtime( true ) - $started_at, 2 );
+
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error(
+			array(
+				'message' => $result->get_error_message(),
+				'elapsed' => $elapsed,
+			),
+			500
+		);
+	}
+
+	$last_run = ctd_get_stats_report_last_run();
+	$message  = isset( $last_run['message'] ) && $last_run['message']
+		? (string) $last_run['message']
+		: __( 'Rapport envoyé avec succès.', 'centre-telechargement' );
+
+	wp_send_json_success(
+		array(
+			'message' => $message,
+			'elapsed' => $elapsed,
+		)
+	);
 }
 
 /**

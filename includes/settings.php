@@ -61,8 +61,191 @@ function ctd_enqueue_settings_assets( $hook_suffix ) {
 		'wp-color-picker',
 		"jQuery(function($) { $('.ctd-color-field').wpColorPicker(); });"
 	);
+	wp_add_inline_script( 'wp-color-picker', ctd_get_report_modal_script() );
 
 	ctd_enqueue_admin_tour_assets( 'settings' );
+}
+
+/**
+ * @return string
+ */
+function ctd_get_report_modal_script() {
+	$config = wp_json_encode(
+		array(
+			'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+			'action'         => 'ctd_send_stats_report',
+			'sendingTitle'   => __( 'Envoi du rapport en cours', 'centre-telechargement' ),
+			'sendingMessage' => __( 'Génération du fichier de statistiques et envoi de l’email. Gardez cette fenêtre ouverte quelques instants.', 'centre-telechargement' ),
+			'successTitle'   => __( 'Rapport envoyé', 'centre-telechargement' ),
+			'errorTitle'     => __( 'Envoi impossible', 'centre-telechargement' ),
+			'elapsedLabel'   => __( 'Temps écoulé : %s s', 'centre-telechargement' ),
+			'totalLabel'     => __( 'Temps total : %s s', 'centre-telechargement' ),
+			'genericError'   => __( 'Une erreur est survenue pendant l’envoi du rapport.', 'centre-telechargement' ),
+		)
+	);
+
+	$config = $config ? $config : '{}';
+
+	return <<<JS
+(function() {
+	'use strict';
+
+	var config = $config;
+	var requestRunning = false;
+
+	function formatSeconds(value) {
+		var seconds = Number(value || 0);
+
+		if (window.Intl && window.Intl.NumberFormat) {
+			return new Intl.NumberFormat(undefined, {
+				maximumFractionDigits: 1,
+				minimumFractionDigits: 1
+			}).format(seconds);
+		}
+
+		return seconds.toFixed(1);
+	}
+
+	function getNow() {
+		return window.performance && window.performance.now ? window.performance.now() : Date.now();
+	}
+
+	function getElapsed(startTime) {
+		return (getNow() - startTime) / 1000;
+	}
+
+	function setText(element, text) {
+		if (element) {
+			element.textContent = text;
+		}
+	}
+
+	function setModalState(modal, state) {
+		modal.classList.remove('is-loading', 'is-success', 'is-error');
+		modal.classList.add('is-' + state);
+	}
+
+	function closeModal(modal, shouldReload) {
+		modal.hidden = true;
+		document.body.classList.remove('ctd-report-modal-open');
+
+		if (shouldReload) {
+			window.location.reload();
+		}
+	}
+
+	document.addEventListener('DOMContentLoaded', function() {
+		var sendButton = document.querySelector('[data-ctd-report-send]');
+		var modal = document.querySelector('[data-ctd-report-modal]');
+
+		if (!sendButton || !modal) {
+			return;
+		}
+
+		var title = modal.querySelector('[data-ctd-report-modal-title]');
+		var message = modal.querySelector('[data-ctd-report-modal-message]');
+		var timer = modal.querySelector('[data-ctd-report-modal-time]');
+		var closeButtons = modal.querySelectorAll('[data-ctd-report-modal-close]');
+		var reloadOnClose = false;
+
+		closeButtons.forEach(function(closeButton) {
+			closeButton.addEventListener('click', function() {
+				closeModal(modal, reloadOnClose);
+			});
+		});
+
+		sendButton.addEventListener('click', function(event) {
+			var startTime;
+			var interval;
+			var formData;
+
+			if (!window.fetch || !window.URLSearchParams) {
+				return;
+			}
+
+			event.preventDefault();
+
+			if (requestRunning) {
+				return;
+			}
+
+			requestRunning = true;
+			reloadOnClose = false;
+			startTime = getNow();
+
+			sendButton.classList.add('is-busy');
+			sendButton.setAttribute('aria-disabled', 'true');
+			modal.hidden = false;
+			document.body.classList.add('ctd-report-modal-open');
+			setModalState(modal, 'loading');
+			setText(title, config.sendingTitle);
+			setText(message, config.sendingMessage);
+			setText(timer, config.elapsedLabel.replace('%s', formatSeconds(0)));
+
+			closeButtons.forEach(function(closeButton) {
+				closeButton.hidden = true;
+			});
+
+			interval = window.setInterval(function() {
+				setText(timer, config.elapsedLabel.replace('%s', formatSeconds(getElapsed(startTime))));
+			}, 120);
+
+			formData = new URLSearchParams();
+			formData.append('action', config.action);
+			formData.append('_ajax_nonce', sendButton.getAttribute('data-nonce') || '');
+
+			fetch(config.ajaxUrl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+				},
+				body: formData.toString()
+			})
+				.then(function(response) {
+					return response.json().then(function(payload) {
+						return {
+							ok: response.ok,
+							payload: payload
+						};
+					});
+				})
+				.then(function(result) {
+					var data = result.payload && result.payload.data ? result.payload.data : {};
+					var serverElapsed = data.elapsed ? Number(data.elapsed) : 0;
+					var elapsed = Math.max(serverElapsed, getElapsed(startTime));
+
+					if (!result.ok || !result.payload || !result.payload.success) {
+						throw new Error(data.message || config.genericError);
+					}
+
+					reloadOnClose = true;
+					setModalState(modal, 'success');
+					setText(title, config.successTitle);
+					setText(message, data.message || config.successTitle);
+					setText(timer, config.totalLabel.replace('%s', formatSeconds(elapsed)));
+				})
+				.catch(function(error) {
+					reloadOnClose = false;
+					setModalState(modal, 'error');
+					setText(title, config.errorTitle);
+					setText(message, error && error.message ? error.message : config.genericError);
+					setText(timer, config.totalLabel.replace('%s', formatSeconds(getElapsed(startTime))));
+				})
+				.finally(function() {
+					window.clearInterval(interval);
+					requestRunning = false;
+					sendButton.classList.remove('is-busy');
+					sendButton.removeAttribute('aria-disabled');
+
+					closeButtons.forEach(function(closeButton) {
+						closeButton.hidden = false;
+					});
+				});
+		});
+	});
+})();
+JS;
 }
 
 /**
@@ -570,9 +753,13 @@ function ctd_render_settings_page() {
 
 	$settings = ctd_get_frontend_settings();
 	$report_settings = ctd_get_report_settings();
-	$manual_report_url = wp_nonce_url(
-		add_query_arg( 'action', 'ctd_send_stats_report', admin_url( 'admin-post.php' ) ),
-		'ctd_send_stats_report'
+	$manual_report_nonce = wp_create_nonce( 'ctd_send_stats_report' );
+	$manual_report_url   = add_query_arg(
+		array(
+			'action'   => 'ctd_send_stats_report',
+			'_wpnonce' => $manual_report_nonce,
+		),
+		admin_url( 'admin-post.php' )
 	);
 	$next_report_timestamp = ctd_get_next_scheduled_stats_report_timestamp();
 	$last_report_run       = ctd_get_stats_report_last_run();
@@ -605,18 +792,23 @@ function ctd_render_settings_page() {
 						<?php
 						ctd_render_text_setting_field( 'sender_name', __( 'Nom de l’expéditeur', 'centre-telechargement' ), $report_settings['sender_name'], CTD_REPORT_SETTINGS_OPTION );
 						ctd_render_text_setting_field( 'sender_email', __( 'Email expéditeur', 'centre-telechargement' ), $report_settings['sender_email'], CTD_REPORT_SETTINGS_OPTION, 'email' );
-						ctd_render_text_setting_field( 'recipient_email', __( 'Email destinataire', 'centre-telechargement' ), $report_settings['recipient_email'], CTD_REPORT_SETTINGS_OPTION, 'email' );
 						?>
 					</div>
 
 					<div class="ctd-settings-fields ctd-settings-fields-inline">
 						<?php
+						ctd_render_text_setting_field( 'recipient_email', __( 'Email destinataire', 'centre-telechargement' ), $report_settings['recipient_email'], CTD_REPORT_SETTINGS_OPTION, 'email' );
 						ctd_render_select_setting_field( 'frequency', __( 'Fréquence d’envoi', 'centre-telechargement' ), $report_settings['frequency'], ctd_get_report_frequencies(), CTD_REPORT_SETTINGS_OPTION );
 						?>
 					</div>
 
 					<div class="ctd-settings-actions">
-						<a class="button button-secondary" href="<?php echo esc_url( $manual_report_url ); ?>">
+						<a
+							class="button button-secondary ctd-report-send-button"
+							href="<?php echo esc_url( $manual_report_url ); ?>"
+							data-ctd-report-send
+							data-nonce="<?php echo esc_attr( $manual_report_nonce ); ?>"
+						>
 							<?php esc_html_e( 'Envoyer le rapport maintenant', 'centre-telechargement' ); ?>
 						</a>
 
@@ -725,6 +917,40 @@ function ctd_render_settings_page() {
 
 			<?php submit_button( __( 'Enregistrer les paramètres', 'centre-telechargement' ) ); ?>
 		</form>
+		<?php ctd_render_report_sending_modal(); ?>
+	</div>
+	<?php
+}
+
+/**
+ * @return void
+ */
+function ctd_render_report_sending_modal() {
+	?>
+	<div class="ctd-report-modal" data-ctd-report-modal hidden>
+		<div class="ctd-report-modal-backdrop" aria-hidden="true"></div>
+		<div class="ctd-report-modal-panel" role="dialog" aria-modal="true" aria-labelledby="ctd-report-modal-title">
+			<button type="button" class="ctd-report-modal-close" data-ctd-report-modal-close aria-label="<?php esc_attr_e( 'Fermer', 'centre-telechargement' ); ?>" hidden>
+				<span class="ctd-report-modal-fa ctd-report-modal-fa-close" aria-hidden="true"></span>
+			</button>
+
+			<div class="ctd-report-modal-visual" aria-hidden="true">
+				<span class="ctd-report-spinner"></span>
+				<span class="ctd-report-modal-state-icon ctd-report-modal-state-success"></span>
+				<span class="ctd-report-modal-state-icon ctd-report-modal-state-error"></span>
+			</div>
+
+			<h2 id="ctd-report-modal-title" data-ctd-report-modal-title><?php esc_html_e( 'Envoi du rapport en cours', 'centre-telechargement' ); ?></h2>
+			<p data-ctd-report-modal-message><?php esc_html_e( 'Génération du fichier de statistiques et envoi de l’email. Gardez cette fenêtre ouverte quelques instants.', 'centre-telechargement' ); ?></p>
+			<p class="ctd-report-modal-note"><?php esc_html_e( 'Le mail peut mettre plusieurs minutes avant d’apparaître dans la boîte de réception du destinataire.', 'centre-telechargement' ); ?></p>
+			<p class="ctd-report-modal-time" data-ctd-report-modal-time><?php esc_html_e( 'Temps écoulé : 0,0 s', 'centre-telechargement' ); ?></p>
+
+			<div class="ctd-report-modal-actions">
+				<button type="button" class="button button-primary" data-ctd-report-modal-close hidden>
+					<?php esc_html_e( 'Fermer', 'centre-telechargement' ); ?>
+				</button>
+			</div>
+		</div>
 	</div>
 	<?php
 }
