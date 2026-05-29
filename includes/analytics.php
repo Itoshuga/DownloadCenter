@@ -99,7 +99,7 @@ function ctd_log_document_event( $document_id, $event_type = 'open', $user_id = 
 			'document_id' => $document_id,
 			'user_id'     => $user_id,
 			'event_type'  => $event_type,
-			'occurred_at' => current_time( 'mysql' ),
+			'occurred_at' => function_exists( 'ctd_get_report_current_mysql' ) ? ctd_get_report_current_mysql() : current_time( 'mysql' ),
 			'ip_address'  => substr( $ip_address, 0, 100 ),
 			'user_agent'  => substr( $user_agent, 0, 255 ),
 		),
@@ -221,7 +221,9 @@ function ctd_get_document_recent_events( $document_id, $limit = 30 ) {
 			'event_type'  => $event_type,
 			'event_label' => $event_labels[ $event_type ],
 			'occurred_at' => $date,
-			'date_label'  => $date ? mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $date ) : '',
+			'date_label'  => $date
+				? ( function_exists( 'ctd_format_report_mysql_datetime' ) ? ctd_format_report_mysql_datetime( $date ) : mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $date ) )
+				: '',
 		);
 	}
 

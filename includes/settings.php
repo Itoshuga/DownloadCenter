@@ -629,7 +629,7 @@ function ctd_render_settings_page() {
 									printf(
 										/* translators: %s: next report date. */
 										esc_html__( 'Prochain envoi : %s.', 'centre-telechargement' ),
-										esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_report_timestamp ) )
+										esc_html( ctd_format_report_timestamp( $next_report_timestamp ) )
 									);
 									?>
 								</span>
@@ -641,7 +641,7 @@ function ctd_render_settings_page() {
 									printf(
 										/* translators: %s: last report date. */
 										esc_html__( 'Dernier envoi : %s.', 'centre-telechargement' ),
-										esc_html( mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $last_report_run['occurred_at'] ) )
+										esc_html( ctd_format_report_mysql_datetime( $last_report_run['occurred_at'] ) )
 									);
 									?>
 								</span>
