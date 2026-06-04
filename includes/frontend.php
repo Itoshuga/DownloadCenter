@@ -150,7 +150,7 @@ function ctd_render_frontend_login_prompt( $settings, $language = '' ) {
 			<div class="ctd-front-modal-content">
 				<div class="ctd-front-modal-pane is-active" role="tabpanel" data-ctd-tab-panel="login">
 					<?php
-					echo ctd_get_frontend_login_form_html( $modal_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+					echo ctd_get_frontend_login_form_html( $modal_id, $strings ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 					?>
 				</div>
 
@@ -171,19 +171,22 @@ function ctd_render_frontend_login_prompt( $settings, $language = '' ) {
 
 /**
  * @param string $id_suffix Unique field suffix.
+ * @param array<string, string> $strings Frontend i18n strings.
  * @return string
  */
-function ctd_get_frontend_login_form_html( $id_suffix = '' ) {
+function ctd_get_frontend_login_form_html( $id_suffix = '', $strings = array() ) {
 	$redirect_url = ctd_get_current_frontend_url();
 	$id_suffix    = sanitize_html_class( $id_suffix );
+	$username_label = isset( $strings['login_username_label'] ) ? $strings['login_username_label'] : __( 'Identifiant ou adresse e-mail', 'centre-telechargement' );
+	$password_label = isset( $strings['login_password_label'] ) ? $strings['login_password_label'] : __( 'Mot de passe', 'centre-telechargement' );
 
 	return wp_login_form(
 		array(
 			'echo'           => false,
 			'redirect'       => $redirect_url,
 			'remember'       => true,
-			'label_username' => __( 'Identifiant ou adresse e-mail', 'centre-telechargement' ),
-			'label_password' => __( 'Mot de passe', 'centre-telechargement' ),
+			'label_username' => $username_label,
+			'label_password' => $password_label,
 			'label_remember' => __( 'Se souvenir de moi', 'centre-telechargement' ),
 			'label_log_in'   => __( 'Connexion', 'centre-telechargement' ),
 			'id_username'    => $id_suffix ? $id_suffix . '-user-login' : 'user_login',

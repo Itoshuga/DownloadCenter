@@ -70,19 +70,25 @@ function ctd_register_category_relationship_meta() {
 
 function ctd_register_term_translation_meta() {
 	foreach ( array( CTD_TAXONOMY, CTD_RANGE_TAXONOMY, CTD_LANGUAGE_TAXONOMY ) as $taxonomy ) {
-		register_term_meta(
-			$taxonomy,
-			CTD_TERM_TRANSLATION_EN_META,
-			array(
-				'type'              => 'string',
-				'single'            => true,
-				'sanitize_callback' => 'sanitize_text_field',
-				'auth_callback'     => static function () {
-					return current_user_can( 'manage_options' );
-				},
-				'show_in_rest'      => false,
-			)
-		);
+		foreach ( array_keys( ctd_get_predefined_frontend_languages() ) as $language ) {
+			if ( 'fr' === $language ) {
+				continue;
+			}
+
+			register_term_meta(
+				$taxonomy,
+				ctd_get_term_translation_meta_key( $language ),
+				array(
+					'type'              => 'string',
+					'single'            => true,
+					'sanitize_callback' => 'sanitize_text_field',
+					'auth_callback'     => static function () {
+						return current_user_can( 'manage_options' );
+					},
+					'show_in_rest'      => false,
+				)
+			);
+		}
 	}
 }
 
@@ -250,18 +256,100 @@ function ctd_seed_default_languages( $force = false ) {
 		) {
 			update_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META, sanitize_text_field( $language['translation_en'] ) );
 		}
+
+		if ( $term_id && ! empty( $language['translations'] ) && is_array( $language['translations'] ) ) {
+			foreach ( $language['translations'] as $translation_language => $translation ) {
+				$translation_language = ctd_normalize_language_code( $translation_language );
+				$meta_key             = ctd_get_term_translation_meta_key( $translation_language );
+
+				if ( 'fr' === $translation_language || get_term_meta( $term_id, $meta_key, true ) ) {
+					continue;
+				}
+
+				update_term_meta( $term_id, $meta_key, sanitize_text_field( $translation ) );
+			}
+		}
 	}
 
 	update_option( 'ctd_default_languages_seeded', CTD_VERSION );
 }
 
+function ctd_get_term_translation_languages() {
+	$languages = function_exists( 'ctd_get_enabled_frontend_language_codes' )
+		? ctd_get_enabled_frontend_language_codes()
+		: array( 'en' );
+
+	return array_values(
+		array_filter(
+			$languages,
+			static function ( $language ) {
+				return 'fr' !== $language;
+			}
+		)
+	);
+}
+
+/**
+ * @param array<int, string> $languages Translation languages.
+ * @param int                $term_id Current term ID.
+ * @return void
+ */
+function ctd_render_term_translation_controls( $languages, $term_id = 0 ) {
+	$term_id = absint( $term_id );
+	$count   = count( $languages );
+	?>
+	<div class="ctd-term-translation-card">
+		<div class="ctd-term-translation-card-header">
+			<div>
+				<strong><?php esc_html_e( 'Traductions', 'centre-telechargement' ); ?></strong>
+				<span><?php esc_html_e( 'Noms utilisés dans les filtres du shortcode selon la langue active.', 'centre-telechargement' ); ?></span>
+			</div>
+			<span class="ctd-term-translation-count">
+				<?php
+				printf(
+					/* translators: %d: enabled translation language count. */
+					esc_html( _n( '%d langue', '%d langues', $count, 'centre-telechargement' ) ),
+					absint( $count )
+				);
+				?>
+			</span>
+		</div>
+
+		<div class="ctd-term-translation-fields">
+			<?php foreach ( $languages as $language ) : ?>
+				<?php
+				$translation = $term_id ? get_term_meta( $term_id, ctd_get_term_translation_meta_key( $language ), true ) : '';
+				$field_id    = 'ctd_term_translation_' . $language;
+				?>
+				<label class="ctd-term-translation-field" for="<?php echo esc_attr( $field_id ); ?>">
+					<span class="ctd-term-translation-field-heading">
+						<span class="ctd-term-translation-language"><?php echo esc_html( ctd_get_frontend_language_label( $language ) ); ?></span>
+						<span class="ctd-term-translation-code"><?php echo esc_html( strtoupper( $language ) ); ?></span>
+					</span>
+					<input
+						type="text"
+						id="<?php echo esc_attr( $field_id ); ?>"
+						name="<?php echo esc_attr( 'ctd_term_translations[' . $language . ']' ); ?>"
+						value="<?php echo esc_attr( is_string( $translation ) ? $translation : '' ); ?>"
+						placeholder="<?php esc_attr_e( 'Nom traduit à afficher', 'centre-telechargement' ); ?>"
+					/>
+				</label>
+			<?php endforeach; ?>
+		</div>
+	</div>
+	<?php
+}
+
 function ctd_render_term_translation_add_field() {
+	$languages = ctd_get_term_translation_languages();
+
+	if ( empty( $languages ) ) {
+		return;
+	}
 	?>
 	<div class="form-field term-ctd-translation-wrap">
-		<label for="ctd_term_translation_en" class="ctd-taxonomy-field-label"><?php esc_html_e( 'Traduction anglaise', 'centre-telechargement' ); ?></label>
 		<?php wp_nonce_field( 'ctd_save_term_translation', 'ctd_term_translation_nonce' ); ?>
-		<input type="text" id="ctd_term_translation_en" name="ctd_term_translation_en" value="" />
-		<p><?php esc_html_e( 'Nom affiché dans les filtres front lorsque la langue anglaise est active.', 'centre-telechargement' ); ?></p>
+		<?php ctd_render_term_translation_controls( $languages ); ?>
 	</div>
 	<?php
 }
@@ -271,21 +359,19 @@ function ctd_render_term_translation_add_field() {
  * @return void
  */
 function ctd_render_term_translation_edit_field( $term ) {
-	$translation = get_term_meta( $term->term_id, CTD_TERM_TRANSLATION_EN_META, true );
+	$languages = ctd_get_term_translation_languages();
+
+	if ( empty( $languages ) ) {
+		return;
+	}
 	?>
 	<tr class="form-field term-ctd-translation-wrap">
 		<th scope="row">
-			<label for="ctd_term_translation_en"><?php esc_html_e( 'Traduction anglaise', 'centre-telechargement' ); ?></label>
+			<?php esc_html_e( 'Traductions', 'centre-telechargement' ); ?>
 		</th>
 		<td>
 			<?php wp_nonce_field( 'ctd_save_term_translation', 'ctd_term_translation_nonce' ); ?>
-			<input
-				type="text"
-				id="ctd_term_translation_en"
-				name="ctd_term_translation_en"
-				value="<?php echo esc_attr( is_string( $translation ) ? $translation : '' ); ?>"
-			/>
-			<p class="description"><?php esc_html_e( 'Nom affiché dans les filtres front lorsque la langue anglaise est active.', 'centre-telechargement' ); ?></p>
+			<?php ctd_render_term_translation_controls( $languages, $term->term_id ); ?>
 		</td>
 	</tr>
 	<?php
@@ -310,16 +396,26 @@ function ctd_save_term_translation_meta( $term_id ) {
 		return;
 	}
 
-	$translation = isset( $_POST['ctd_term_translation_en'] )
-		? sanitize_text_field( wp_unslash( $_POST['ctd_term_translation_en'] ) )
-		: '';
+	$translations = isset( $_POST['ctd_term_translations'] ) && is_array( $_POST['ctd_term_translations'] )
+		? wp_unslash( $_POST['ctd_term_translations'] )
+		: array();
 
-	if ( '' === $translation ) {
-		delete_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META );
-		return;
+	if ( isset( $_POST['ctd_term_translation_en'] ) && ! isset( $translations['en'] ) ) {
+		$translations['en'] = wp_unslash( $_POST['ctd_term_translation_en'] );
 	}
 
-	update_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META, $translation );
+	foreach ( ctd_get_term_translation_languages() as $language ) {
+		$translation = isset( $translations[ $language ] )
+			? sanitize_text_field( is_scalar( $translations[ $language ] ) ? (string) $translations[ $language ] : '' )
+			: '';
+
+		if ( '' === $translation ) {
+			delete_term_meta( $term_id, ctd_get_term_translation_meta_key( $language ) );
+			continue;
+		}
+
+		update_term_meta( $term_id, ctd_get_term_translation_meta_key( $language ), $translation );
+	}
 }
 
 function ctd_render_category_relationship_add_fields() {

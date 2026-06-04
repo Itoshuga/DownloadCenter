@@ -277,25 +277,99 @@ function ctd_get_settings_language_tabs_script() {
 (function() {
 	'use strict';
 
+	function getLanguageButtons(tabs) {
+		return tabs.querySelectorAll('[data-ctd-settings-language-tab]');
+	}
+
+	function getLanguagePanels(tabs) {
+		return tabs.querySelectorAll('[data-ctd-settings-language-panel]');
+	}
+
+	function selectLanguage(tabs, language) {
+		getLanguageButtons(tabs).forEach(function(button) {
+			var isActive = !button.hidden && button.getAttribute('data-ctd-settings-language-tab') === language;
+
+			button.classList.toggle('is-active', isActive);
+			button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+		});
+
+		getLanguagePanels(tabs).forEach(function(panel) {
+			panel.hidden = panel.getAttribute('data-ctd-settings-language-panel') !== language;
+		});
+	}
+
+	function setLanguageEnabled(tabs, language, isEnabled) {
+		var input = tabs.querySelector('[data-ctd-settings-enabled-language="' + language + '"]');
+		var button = tabs.querySelector('[data-ctd-settings-language-tab="' + language + '"]');
+		var addOption = tabs.querySelector('[data-ctd-settings-language-add="' + language + '"]');
+
+		if (input) {
+			input.disabled = !isEnabled;
+		}
+
+		if (button) {
+			button.hidden = !isEnabled;
+		}
+
+		if (addOption) {
+			addOption.hidden = isEnabled;
+		}
+	}
+
+	function getFirstVisibleLanguage(tabs) {
+		var button = Array.prototype.find.call(getLanguageButtons(tabs), function(item) {
+			return !item.hidden;
+		});
+
+		return button ? button.getAttribute('data-ctd-settings-language-tab') : '';
+	}
+
 	document.addEventListener('DOMContentLoaded', function() {
 		document.querySelectorAll('[data-ctd-settings-language-tabs]').forEach(function(tabs) {
-			var buttons = tabs.querySelectorAll('[data-ctd-settings-language-tab]');
-			var panels = tabs.querySelectorAll('[data-ctd-settings-language-panel]');
+			tabs.addEventListener('click', function(event) {
+				var tabButton = event.target.closest('[data-ctd-settings-language-tab]');
+				var addToggle = event.target.closest('[data-ctd-settings-language-add-toggle]');
+				var addButton = event.target.closest('[data-ctd-settings-language-add]');
+				var removeButton = event.target.closest('[data-ctd-settings-language-remove]');
+				var addPanel = tabs.querySelector('[data-ctd-settings-language-add-panel]');
+				var addToggleButton = tabs.querySelector('[data-ctd-settings-language-add-toggle]');
+				var language;
 
-			buttons.forEach(function(button) {
-				button.addEventListener('click', function() {
-					var language = button.getAttribute('data-ctd-settings-language-tab') || '';
+				if (tabButton) {
+					event.preventDefault();
+					selectLanguage(tabs, tabButton.getAttribute('data-ctd-settings-language-tab') || '');
+					return;
+				}
 
-					buttons.forEach(function(item) {
-						var isActive = item === button;
-						item.classList.toggle('is-active', isActive);
-						item.setAttribute('aria-selected', isActive ? 'true' : 'false');
-					});
+				if (addToggle && addPanel) {
+					event.preventDefault();
+					addPanel.hidden = !addPanel.hidden;
+					addToggle.setAttribute('aria-expanded', addPanel.hidden ? 'false' : 'true');
+					return;
+				}
 
-					panels.forEach(function(panel) {
-						panel.hidden = panel.getAttribute('data-ctd-settings-language-panel') !== language;
-					});
-				});
+				if (addButton) {
+					event.preventDefault();
+					language = addButton.getAttribute('data-ctd-settings-language-add') || '';
+					setLanguageEnabled(tabs, language, true);
+					selectLanguage(tabs, language);
+
+					if (addPanel) {
+						addPanel.hidden = true;
+					}
+
+					if (addToggleButton) {
+						addToggleButton.setAttribute('aria-expanded', 'false');
+					}
+					return;
+				}
+
+				if (removeButton) {
+					event.preventDefault();
+					language = removeButton.getAttribute('data-ctd-settings-language-remove') || '';
+					setLanguageEnabled(tabs, language, false);
+					selectLanguage(tabs, getFirstVisibleLanguage(tabs));
+				}
 			});
 		});
 	});
@@ -604,7 +678,9 @@ function ctd_get_admin_tour_steps() {
  * @return array<string, string>
  */
 function ctd_get_frontend_settings_defaults() {
-	return array(
+	$language_catalog = ctd_get_predefined_frontend_languages();
+	$fallback_strings = $language_catalog['fr']['strings'];
+	$defaults         = array(
 		'primary_color'          => '#10233f',
 		'accent_color'           => '#11a9cf',
 		'accent_hover_color'     => '#0b88ad',
@@ -620,39 +696,33 @@ function ctd_get_frontend_settings_defaults() {
 		'filter_gap'             => '14px',
 		'document_min_width'     => '150px',
 		'document_gap'           => '26px',
-		'empty_message'          => __( 'Aucun document ne correspond aux filtres sélectionnés.', 'centre-telechargement' ),
-		'login_notice_text'      => __( 'Merci de vous connecter pour télécharger les fichiers', 'centre-telechargement' ),
-		'login_button_text'      => __( 'Connexion / Demande de Mot de Passe', 'centre-telechargement' ),
+		'enabled_languages'      => ctd_get_default_frontend_language_codes(),
+		'empty_message'          => $fallback_strings['empty_message'],
+		'login_notice_text'      => $fallback_strings['login_notice_text'],
+		'login_button_text'      => $fallback_strings['login_button_text'],
 		'password_request_shortcode' => '',
-		'login_notice_text_fr'   => __( 'Merci de vous connecter pour télécharger les fichiers', 'centre-telechargement' ),
-		'login_button_text_fr'   => __( 'Connexion / Demande de Mot de Passe', 'centre-telechargement' ),
-		'login_modal_title_fr'   => __( 'Accès aux documents', 'centre-telechargement' ),
-		'login_tab_label_fr'     => __( 'Connexion', 'centre-telechargement' ),
-		'password_tab_label_fr'  => __( 'Demande de mot de passe', 'centre-telechargement' ),
-		'password_request_shortcode_fr' => '',
-		'password_shortcode_empty_message_fr' => __( 'Ajoutez le shortcode du formulaire de contact dans les paramètres du Centre de Téléchargement.', 'centre-telechargement' ),
-		'filter_category_label_fr' => __( 'Catégorie', 'centre-telechargement' ),
-		'filter_category_empty_label_fr' => __( 'Toutes les catégories', 'centre-telechargement' ),
-		'filter_range_label_fr'  => __( 'Gamme', 'centre-telechargement' ),
-		'filter_range_empty_label_fr' => __( 'Toutes les gammes', 'centre-telechargement' ),
-		'filter_language_label_fr' => __( 'Langue', 'centre-telechargement' ),
-		'filter_language_empty_label_fr' => __( 'Toutes les langues', 'centre-telechargement' ),
-		'empty_message_fr'       => __( 'Aucun document ne correspond aux filtres sélectionnés.', 'centre-telechargement' ),
-		'login_notice_text_en'   => __( 'Please log in to download files', 'centre-telechargement' ),
-		'login_button_text_en'   => __( 'Login / Password Request', 'centre-telechargement' ),
-		'login_modal_title_en'   => __( 'Document access', 'centre-telechargement' ),
-		'login_tab_label_en'     => __( 'Login', 'centre-telechargement' ),
-		'password_tab_label_en'  => __( 'Password request', 'centre-telechargement' ),
-		'password_request_shortcode_en' => '',
-		'password_shortcode_empty_message_en' => __( 'Add the contact form shortcode in the Centre de Téléchargement settings.', 'centre-telechargement' ),
-		'filter_category_label_en' => __( 'Category', 'centre-telechargement' ),
-		'filter_category_empty_label_en' => __( 'All categories', 'centre-telechargement' ),
-		'filter_range_label_en'  => __( 'Range', 'centre-telechargement' ),
-		'filter_range_empty_label_en' => __( 'All ranges', 'centre-telechargement' ),
-		'filter_language_label_en' => __( 'Language', 'centre-telechargement' ),
-		'filter_language_empty_label_en' => __( 'All languages', 'centre-telechargement' ),
-		'empty_message_en'       => __( 'No document matches the selected filters.', 'centre-telechargement' ),
 	);
+
+	foreach ( $language_catalog as $language => $language_data ) {
+		$strings = isset( $language_data['strings'] ) && is_array( $language_data['strings'] )
+			? $language_data['strings']
+			: array();
+
+		foreach ( ctd_get_frontend_localized_setting_keys() as $localized_key ) {
+			$key = $localized_key . '_' . $language;
+
+			if ( 'password_request_shortcode' === $localized_key ) {
+				$defaults[ $key ] = '';
+				continue;
+			}
+
+			$defaults[ $key ] = isset( $strings[ $localized_key ] )
+				? (string) $strings[ $localized_key ]
+				: (string) ( $fallback_strings[ $localized_key ] ?? '' );
+		}
+	}
+
+	return $defaults;
 }
 
 /**
@@ -679,6 +749,9 @@ function ctd_sanitize_frontend_settings( $settings ) {
 		$settings = array();
 	}
 
+	$language_catalog  = ctd_get_predefined_frontend_languages();
+	$enabled_languages = ctd_sanitize_frontend_language_codes( $settings['enabled_languages'] ?? $defaults['enabled_languages'] );
+
 	$sanitized = array(
 		'primary_color'          => ctd_sanitize_hex_setting( $settings['primary_color'] ?? '', $defaults['primary_color'] ),
 		'accent_color'           => ctd_sanitize_hex_setting( $settings['accent_color'] ?? '', $defaults['accent_color'] ),
@@ -695,6 +768,7 @@ function ctd_sanitize_frontend_settings( $settings ) {
 		'filter_gap'             => ctd_sanitize_css_length_setting( $settings['filter_gap'] ?? '', $defaults['filter_gap'] ),
 		'document_min_width'     => ctd_sanitize_css_length_setting( $settings['document_min_width'] ?? '', $defaults['document_min_width'] ),
 		'document_gap'           => ctd_sanitize_css_length_setting( $settings['document_gap'] ?? '', $defaults['document_gap'] ),
+		'enabled_languages'      => $enabled_languages,
 		'empty_message'          => ctd_sanitize_plain_text_setting( $settings['empty_message'] ?? '', $defaults['empty_message'] ),
 		'login_notice_text'      => ctd_sanitize_plain_text_setting( $settings['login_notice_text'] ?? '', $defaults['login_notice_text'] ),
 		'login_button_text'      => ctd_sanitize_plain_text_setting( $settings['login_button_text'] ?? '', $defaults['login_button_text'] ),
@@ -702,7 +776,7 @@ function ctd_sanitize_frontend_settings( $settings ) {
 	);
 
 	foreach ( ctd_get_frontend_localized_setting_keys() as $localized_key ) {
-		foreach ( array( 'fr', 'en' ) as $language ) {
+		foreach ( array_keys( $language_catalog ) as $language ) {
 			$key = $localized_key . '_' . $language;
 
 			if ( 'password_request_shortcode' === $localized_key ) {
@@ -731,6 +805,69 @@ function ctd_sanitize_frontend_settings( $settings ) {
 }
 
 /**
+ * @param mixed $languages Language codes candidate.
+ * @return array<int, string>
+ */
+function ctd_sanitize_frontend_language_codes( $languages ) {
+	$catalog = ctd_get_predefined_frontend_languages();
+
+	if ( ! is_array( $languages ) ) {
+		$languages = array( $languages );
+	}
+
+	$languages = array_map( 'ctd_normalize_language_code', $languages );
+	$languages = array_values( array_unique( array_filter( $languages ) ) );
+	$languages = array_values(
+		array_filter(
+			$languages,
+			static function ( $language ) use ( $catalog ) {
+				return isset( $catalog[ $language ] );
+			}
+		)
+	);
+
+	foreach ( ctd_get_default_frontend_language_codes() as $required_language ) {
+		if ( ! in_array( $required_language, $languages, true ) ) {
+			$languages[] = $required_language;
+		}
+	}
+
+	usort(
+		$languages,
+		static function ( $a, $b ) use ( $catalog ) {
+			$keys = array_keys( $catalog );
+
+			return array_search( $a, $keys, true ) <=> array_search( $b, $keys, true );
+		}
+	);
+
+	return $languages;
+}
+
+/**
+ * @param array<string, mixed>|null $settings Optional frontend settings.
+ * @return array<int, string>
+ */
+function ctd_get_enabled_frontend_language_codes( $settings = null ) {
+	if ( ! is_array( $settings ) ) {
+		$settings = ctd_get_frontend_settings();
+	}
+
+	return ctd_sanitize_frontend_language_codes( $settings['enabled_languages'] ?? ctd_get_default_frontend_language_codes() );
+}
+
+/**
+ * @param string $language Language code.
+ * @return string
+ */
+function ctd_get_frontend_language_label( $language ) {
+	$language = ctd_normalize_frontend_language( $language );
+	$catalog  = ctd_get_predefined_frontend_languages();
+
+	return isset( $catalog[ $language ]['label'] ) ? (string) $catalog[ $language ]['label'] : strtoupper( $language );
+}
+
+/**
  * @return array<int, string>
  */
 function ctd_get_frontend_localized_setting_keys() {
@@ -739,6 +876,8 @@ function ctd_get_frontend_localized_setting_keys() {
 		'login_button_text',
 		'login_modal_title',
 		'login_tab_label',
+		'login_username_label',
+		'login_password_label',
 		'password_tab_label',
 		'password_request_shortcode',
 		'password_shortcode_empty_message',
@@ -757,26 +896,31 @@ function ctd_get_frontend_localized_setting_keys() {
  * @return string
  */
 function ctd_normalize_frontend_language( $language ) {
-	$language = strtolower( (string) $language );
+	$language = ctd_normalize_language_code( $language );
+	$catalog  = ctd_get_predefined_frontend_languages();
 
-	return 0 === strpos( $language, 'en' ) ? 'en' : 'fr';
+	return isset( $catalog[ $language ] ) ? $language : 'fr';
 }
 
 /**
  * @return string
  */
 function ctd_get_current_frontend_language() {
+	$language = '';
+
 	if ( function_exists( 'pll_current_language' ) ) {
 		$language = pll_current_language( 'slug' );
-
-		if ( $language ) {
-			return ctd_normalize_frontend_language( $language );
-		}
 	}
 
-	$locale = function_exists( 'determine_locale' ) ? determine_locale() : get_locale();
+	if ( ! $language ) {
+		$language = function_exists( 'determine_locale' ) ? determine_locale() : get_locale();
+	}
 
-	return ctd_normalize_frontend_language( $locale );
+	$language = ctd_normalize_frontend_language( $language );
+	$settings = ctd_get_frontend_settings();
+	$enabled  = ctd_get_enabled_frontend_language_codes( $settings );
+
+	return in_array( $language, $enabled, true ) ? $language : 'fr';
 }
 
 /**
@@ -788,11 +932,19 @@ function ctd_get_frontend_i18n_strings( $language = '', $settings = null ) {
 	$language = ctd_normalize_frontend_language( $language ? $language : ctd_get_current_frontend_language() );
 	$settings = is_array( $settings ) ? $settings : ctd_get_frontend_settings();
 	$strings  = array();
+	$enabled  = ctd_get_enabled_frontend_language_codes( $settings );
+
+	if ( ! in_array( $language, $enabled, true ) ) {
+		$language = 'fr';
+	}
 
 	foreach ( ctd_get_frontend_localized_setting_keys() as $localized_key ) {
 		$key = $localized_key . '_' . $language;
+		$fallback_key = $localized_key . '_fr';
 
-		$strings[ $localized_key ] = isset( $settings[ $key ] ) ? (string) $settings[ $key ] : '';
+		$strings[ $localized_key ] = isset( $settings[ $key ] ) && '' !== (string) $settings[ $key ]
+			? (string) $settings[ $key ]
+			: (string) ( $settings[ $fallback_key ] ?? '' );
 	}
 
 	return $strings;
@@ -931,6 +1083,10 @@ function ctd_render_settings_page() {
 	}
 
 	$settings = ctd_get_frontend_settings();
+	$frontend_language_catalog = ctd_get_predefined_frontend_languages();
+	$enabled_frontend_languages = ctd_get_enabled_frontend_language_codes( $settings );
+	$required_frontend_languages = ctd_get_default_frontend_language_codes();
+	$active_frontend_language = $enabled_frontend_languages[0] ?? 'fr';
 	$report_settings = ctd_get_report_settings();
 	$manual_report_nonce = wp_create_nonce( 'ctd_send_stats_report' );
 	$manual_report_url   = add_query_arg(
@@ -1028,17 +1184,69 @@ function ctd_render_settings_page() {
 					</header>
 
 					<div class="ctd-settings-language-tabs" data-ctd-settings-language-tabs>
+						<div class="ctd-settings-enabled-language-fields" data-ctd-settings-enabled-language-fields>
+							<?php foreach ( array_keys( $frontend_language_catalog ) as $language ) : ?>
+								<input
+									type="hidden"
+									name="<?php echo esc_attr( CTD_FRONTEND_SETTINGS_OPTION . '[enabled_languages][]' ); ?>"
+									value="<?php echo esc_attr( $language ); ?>"
+									data-ctd-settings-enabled-language="<?php echo esc_attr( $language ); ?>"
+									<?php disabled( ! in_array( $language, $enabled_frontend_languages, true ) ); ?>
+								/>
+							<?php endforeach; ?>
+						</div>
+
 						<div class="ctd-settings-language-tablist" role="tablist" aria-label="<?php esc_attr_e( 'Langues des textes front', 'centre-telechargement' ); ?>">
-							<button type="button" class="ctd-settings-language-tab is-active" role="tab" aria-selected="true" data-ctd-settings-language-tab="fr">
-								<?php esc_html_e( 'Français', 'centre-telechargement' ); ?>
-							</button>
-							<button type="button" class="ctd-settings-language-tab" role="tab" aria-selected="false" data-ctd-settings-language-tab="en">
-								<?php esc_html_e( 'Anglais', 'centre-telechargement' ); ?>
+							<?php foreach ( $frontend_language_catalog as $language => $language_data ) : ?>
+								<?php
+								$is_enabled = in_array( $language, $enabled_frontend_languages, true );
+								$is_active  = $language === $active_frontend_language;
+								?>
+								<button
+									type="button"
+									class="ctd-settings-language-tab<?php echo $is_active ? ' is-active' : ''; ?>"
+									role="tab"
+									aria-selected="<?php echo $is_active ? 'true' : 'false'; ?>"
+									data-ctd-settings-language-tab="<?php echo esc_attr( $language ); ?>"
+									<?php echo $is_enabled ? '' : 'hidden'; ?>
+								>
+									<?php echo esc_html( ctd_get_frontend_language_label( $language ) ); ?>
+								</button>
+							<?php endforeach; ?>
+
+							<button type="button" class="ctd-settings-language-add-toggle" data-ctd-settings-language-add-toggle aria-expanded="false">
+								<span aria-hidden="true">+</span>
+								<?php esc_html_e( 'Ajouter une langue', 'centre-telechargement' ); ?>
 							</button>
 						</div>
 
-						<?php ctd_render_frontend_language_settings_panel( 'fr', __( 'Français', 'centre-telechargement' ), $settings, false ); ?>
-						<?php ctd_render_frontend_language_settings_panel( 'en', __( 'Anglais', 'centre-telechargement' ), $settings, true ); ?>
+						<div class="ctd-settings-language-add-panel" data-ctd-settings-language-add-panel hidden>
+							<strong><?php esc_html_e( 'Langues prédéfinies disponibles', 'centre-telechargement' ); ?></strong>
+							<div class="ctd-settings-language-add-options">
+								<?php foreach ( $frontend_language_catalog as $language => $language_data ) : ?>
+									<button
+										type="button"
+										class="ctd-settings-language-add-option"
+										data-ctd-settings-language-add="<?php echo esc_attr( $language ); ?>"
+										<?php echo in_array( $language, $enabled_frontend_languages, true ) ? 'hidden' : ''; ?>
+									>
+										<?php echo esc_html( ctd_get_frontend_language_label( $language ) ); ?>
+									</button>
+								<?php endforeach; ?>
+							</div>
+						</div>
+
+						<?php foreach ( $frontend_language_catalog as $language => $language_data ) : ?>
+							<?php
+							ctd_render_frontend_language_settings_panel(
+								$language,
+								ctd_get_frontend_language_label( $language ),
+								$settings,
+								$language !== $active_frontend_language,
+								! in_array( $language, $required_frontend_languages, true )
+							);
+							?>
+						<?php endforeach; ?>
 					</div>
 				</section>
 
@@ -1106,9 +1314,10 @@ function ctd_render_settings_page() {
  * @param string                $label Panel label.
  * @param array<string, string> $settings Frontend settings.
  * @param bool                  $hidden Whether the panel is initially hidden.
+ * @param bool                  $removable Whether the language can be removed.
  * @return void
  */
-function ctd_render_frontend_language_settings_panel( $language, $label, $settings, $hidden = false ) {
+function ctd_render_frontend_language_settings_panel( $language, $label, $settings, $hidden = false, $removable = false ) {
 	$language = ctd_normalize_frontend_language( $language );
 	?>
 	<div
@@ -1116,7 +1325,15 @@ function ctd_render_frontend_language_settings_panel( $language, $label, $settin
 		data-ctd-settings-language-panel="<?php echo esc_attr( $language ); ?>"
 		<?php echo $hidden ? 'hidden' : ''; ?>
 	>
-		<h3><?php echo esc_html( $label ); ?></h3>
+		<div class="ctd-settings-language-panel-heading">
+			<h3><?php echo esc_html( $label ); ?></h3>
+
+			<?php if ( $removable ) : ?>
+				<button type="button" class="ctd-settings-language-remove" data-ctd-settings-language-remove="<?php echo esc_attr( $language ); ?>">
+					<?php esc_html_e( 'Retirer cette langue', 'centre-telechargement' ); ?>
+				</button>
+			<?php endif; ?>
+		</div>
 
 		<div class="ctd-settings-fields ctd-settings-fields-inline">
 			<?php
@@ -1124,6 +1341,8 @@ function ctd_render_frontend_language_settings_panel( $language, $label, $settin
 			ctd_render_text_setting_field( 'login_button_text_' . $language, __( 'Texte du bouton', 'centre-telechargement' ), $settings[ 'login_button_text_' . $language ] );
 			ctd_render_text_setting_field( 'login_modal_title_' . $language, __( 'Titre de la popup', 'centre-telechargement' ), $settings[ 'login_modal_title_' . $language ] );
 			ctd_render_text_setting_field( 'login_tab_label_' . $language, __( 'Onglet connexion', 'centre-telechargement' ), $settings[ 'login_tab_label_' . $language ] );
+			ctd_render_text_setting_field( 'login_username_label_' . $language, __( 'Libellé identifiant / email', 'centre-telechargement' ), $settings[ 'login_username_label_' . $language ] );
+			ctd_render_text_setting_field( 'login_password_label_' . $language, __( 'Libellé mot de passe', 'centre-telechargement' ), $settings[ 'login_password_label_' . $language ] );
 			ctd_render_text_setting_field( 'password_tab_label_' . $language, __( 'Onglet demande de mot de passe', 'centre-telechargement' ), $settings[ 'password_tab_label_' . $language ] );
 			?>
 		</div>

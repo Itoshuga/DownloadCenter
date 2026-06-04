@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.5.16
+ * Version: 0.5.19
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.5.16' );
+define( 'CTD_VERSION', '0.5.19' );
 define( 'CTD_ANALYTICS_SCHEMA_VERSION', '1.1.0' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -25,6 +25,7 @@ define( 'CTD_CATEGORY_RANGE_META', '_ctd_category_range_ids' );
 define( 'CTD_CATEGORY_LANGUAGE_META', '_ctd_category_language_ids' );
 define( 'CTD_CATEGORY_PROTECTED_HINT_META', '_ctd_category_protected_hint' );
 define( 'CTD_TERM_TRANSLATION_EN_META', '_ctd_term_translation_en' );
+define( 'CTD_TERM_TRANSLATION_META_PREFIX', '_ctd_term_translation_' );
 define( 'CTD_LANGUAGE_FLAG_META', '_ctd_language_flag' );
 define( 'CTD_LANGUAGE_FLAG_ATTACHMENT_META', '_ctd_language_flag_attachment_id' );
 define( 'CTD_LANGUAGE_FLAGS_DIR', CTD_PLUGIN_DIR . 'assets/images/flags/' );
@@ -270,10 +271,10 @@ function ctd_get_translated_term_name( $term, $language = '', $taxonomy = '' ) {
 
 	$language = function_exists( 'ctd_normalize_frontend_language' )
 		? ctd_normalize_frontend_language( $language )
-		: ( 0 === strpos( strtolower( (string) $language ), 'en' ) ? 'en' : 'fr' );
+		: ctd_normalize_language_code( $language );
 
-	if ( 'en' === $language ) {
-		$translation = get_term_meta( $term->term_id, CTD_TERM_TRANSLATION_EN_META, true );
+	if ( 'fr' !== $language ) {
+		$translation = get_term_meta( $term->term_id, ctd_get_term_translation_meta_key( $language ), true );
 		$translation = is_string( $translation ) ? trim( $translation ) : '';
 
 		if ( '' !== $translation ) {
@@ -282,6 +283,148 @@ function ctd_get_translated_term_name( $term, $language = '', $taxonomy = '' ) {
 	}
 
 	return $term->name;
+}
+
+/**
+ * @param string $language Language code.
+ * @return string
+ */
+function ctd_get_term_translation_meta_key( $language ) {
+	$language = ctd_normalize_language_code( $language );
+
+	if ( 'en' === $language ) {
+		return CTD_TERM_TRANSLATION_EN_META;
+	}
+
+	return CTD_TERM_TRANSLATION_META_PREFIX . $language;
+}
+
+/**
+ * @param mixed $language Language candidate.
+ * @return string
+ */
+function ctd_normalize_language_code( $language ) {
+	$language = strtolower( (string) $language );
+	$language = str_replace( '_', '-', $language );
+	$parts    = explode( '-', $language );
+	$language = sanitize_key( $parts[0] ?? '' );
+
+	return preg_match( '/^[a-z]{2}$/', $language ) ? $language : 'fr';
+}
+
+/**
+ * @return array<string, array<string, mixed>>
+ */
+function ctd_get_predefined_frontend_languages() {
+	return array(
+		'fr' => array(
+			'label'   => __( 'Français', 'centre-telechargement' ),
+			'strings' => array(
+				'login_notice_text'      => __( 'Merci de vous connecter pour télécharger les fichiers', 'centre-telechargement' ),
+				'login_button_text'      => __( 'Connexion / Demande de Mot de Passe', 'centre-telechargement' ),
+				'login_modal_title'      => __( 'Accès aux documents', 'centre-telechargement' ),
+				'login_tab_label'        => __( 'Connexion', 'centre-telechargement' ),
+				'login_username_label'   => __( 'Identifiant ou adresse e-mail', 'centre-telechargement' ),
+				'login_password_label'   => __( 'Mot de passe', 'centre-telechargement' ),
+				'password_tab_label'     => __( 'Demande de mot de passe', 'centre-telechargement' ),
+				'password_shortcode_empty_message' => __( 'Ajoutez le shortcode du formulaire de contact dans les paramètres du Centre de Téléchargement.', 'centre-telechargement' ),
+				'filter_category_label'  => __( 'Catégorie', 'centre-telechargement' ),
+				'filter_category_empty_label' => __( 'Toutes les catégories', 'centre-telechargement' ),
+				'filter_range_label'     => __( 'Gamme', 'centre-telechargement' ),
+				'filter_range_empty_label' => __( 'Toutes les gammes', 'centre-telechargement' ),
+				'filter_language_label'  => __( 'Langue', 'centre-telechargement' ),
+				'filter_language_empty_label' => __( 'Toutes les langues', 'centre-telechargement' ),
+				'empty_message'          => __( 'Aucun document ne correspond aux filtres sélectionnés.', 'centre-telechargement' ),
+			),
+		),
+		'en' => array(
+			'label'   => __( 'Anglais', 'centre-telechargement' ),
+			'strings' => array(
+				'login_notice_text'      => __( 'Please log in to download files', 'centre-telechargement' ),
+				'login_button_text'      => __( 'Login / Password Request', 'centre-telechargement' ),
+				'login_modal_title'      => __( 'Document access', 'centre-telechargement' ),
+				'login_tab_label'        => __( 'Login', 'centre-telechargement' ),
+				'login_username_label'   => __( 'Username or email address', 'centre-telechargement' ),
+				'login_password_label'   => __( 'Password', 'centre-telechargement' ),
+				'password_tab_label'     => __( 'Password request', 'centre-telechargement' ),
+				'password_shortcode_empty_message' => __( 'Add the contact form shortcode in the Centre de Téléchargement settings.', 'centre-telechargement' ),
+				'filter_category_label'  => __( 'Category', 'centre-telechargement' ),
+				'filter_category_empty_label' => __( 'All categories', 'centre-telechargement' ),
+				'filter_range_label'     => __( 'Range', 'centre-telechargement' ),
+				'filter_range_empty_label' => __( 'All ranges', 'centre-telechargement' ),
+				'filter_language_label'  => __( 'Language', 'centre-telechargement' ),
+				'filter_language_empty_label' => __( 'All languages', 'centre-telechargement' ),
+				'empty_message'          => __( 'No document matches the selected filters.', 'centre-telechargement' ),
+			),
+		),
+		'es' => array(
+			'label'   => __( 'Espagnol', 'centre-telechargement' ),
+			'strings' => array(
+				'login_notice_text'      => __( 'Inicie sesión para descargar archivos', 'centre-telechargement' ),
+				'login_button_text'      => __( 'Acceso / Solicitud de contraseña', 'centre-telechargement' ),
+				'login_modal_title'      => __( 'Acceso a documentos', 'centre-telechargement' ),
+				'login_tab_label'        => __( 'Acceso', 'centre-telechargement' ),
+				'login_username_label'   => __( 'Usuario o correo electrónico', 'centre-telechargement' ),
+				'login_password_label'   => __( 'Contraseña', 'centre-telechargement' ),
+				'password_tab_label'     => __( 'Solicitud de contraseña', 'centre-telechargement' ),
+				'password_shortcode_empty_message' => __( 'Añada el shortcode del formulario de contacto en los ajustes.', 'centre-telechargement' ),
+				'filter_category_label'  => __( 'Categoría', 'centre-telechargement' ),
+				'filter_category_empty_label' => __( 'Todas las categorías', 'centre-telechargement' ),
+				'filter_range_label'     => __( 'Gama', 'centre-telechargement' ),
+				'filter_range_empty_label' => __( 'Todas las gamas', 'centre-telechargement' ),
+				'filter_language_label'  => __( 'Idioma', 'centre-telechargement' ),
+				'filter_language_empty_label' => __( 'Todos los idiomas', 'centre-telechargement' ),
+				'empty_message'          => __( 'Ningún documento corresponde a los filtros seleccionados.', 'centre-telechargement' ),
+			),
+		),
+		'de' => array(
+			'label'   => __( 'Allemand', 'centre-telechargement' ),
+			'strings' => array(
+				'login_notice_text'      => __( 'Bitte melden Sie sich an, um Dateien herunterzuladen', 'centre-telechargement' ),
+				'login_button_text'      => __( 'Login / Passwort anfordern', 'centre-telechargement' ),
+				'login_modal_title'      => __( 'Dokumentenzugriff', 'centre-telechargement' ),
+				'login_tab_label'        => __( 'Login', 'centre-telechargement' ),
+				'login_username_label'   => __( 'Benutzername oder E-Mail-Adresse', 'centre-telechargement' ),
+				'login_password_label'   => __( 'Passwort', 'centre-telechargement' ),
+				'password_tab_label'     => __( 'Passwort anfordern', 'centre-telechargement' ),
+				'password_shortcode_empty_message' => __( 'Fügen Sie den Shortcode des Kontaktformulars in den Einstellungen hinzu.', 'centre-telechargement' ),
+				'filter_category_label'  => __( 'Kategorie', 'centre-telechargement' ),
+				'filter_category_empty_label' => __( 'Alle Kategorien', 'centre-telechargement' ),
+				'filter_range_label'     => __( 'Produktreihe', 'centre-telechargement' ),
+				'filter_range_empty_label' => __( 'Alle Produktreihen', 'centre-telechargement' ),
+				'filter_language_label'  => __( 'Sprache', 'centre-telechargement' ),
+				'filter_language_empty_label' => __( 'Alle Sprachen', 'centre-telechargement' ),
+				'empty_message'          => __( 'Kein Dokument entspricht den ausgewählten Filtern.', 'centre-telechargement' ),
+			),
+		),
+		'it' => array(
+			'label'   => __( 'Italien', 'centre-telechargement' ),
+			'strings' => array(
+				'login_notice_text'      => __( 'Accedi per scaricare i file', 'centre-telechargement' ),
+				'login_button_text'      => __( 'Accesso / Richiesta password', 'centre-telechargement' ),
+				'login_modal_title'      => __( 'Accesso ai documenti', 'centre-telechargement' ),
+				'login_tab_label'        => __( 'Accesso', 'centre-telechargement' ),
+				'login_username_label'   => __( 'Nome utente o indirizzo e-mail', 'centre-telechargement' ),
+				'login_password_label'   => __( 'Password', 'centre-telechargement' ),
+				'password_tab_label'     => __( 'Richiesta password', 'centre-telechargement' ),
+				'password_shortcode_empty_message' => __( 'Aggiungi lo shortcode del modulo di contatto nelle impostazioni.', 'centre-telechargement' ),
+				'filter_category_label'  => __( 'Categoria', 'centre-telechargement' ),
+				'filter_category_empty_label' => __( 'Tutte le categorie', 'centre-telechargement' ),
+				'filter_range_label'     => __( 'Gamma', 'centre-telechargement' ),
+				'filter_range_empty_label' => __( 'Tutte le gamme', 'centre-telechargement' ),
+				'filter_language_label'  => __( 'Lingua', 'centre-telechargement' ),
+				'filter_language_empty_label' => __( 'Tutte le lingue', 'centre-telechargement' ),
+				'empty_message'          => __( 'Nessun documento corrisponde ai filtri selezionati.', 'centre-telechargement' ),
+			),
+		),
+	);
+}
+
+/**
+ * @return array<int, string>
+ */
+function ctd_get_default_frontend_language_codes() {
+	return array( 'fr', 'en' );
 }
 
 /**
@@ -294,18 +437,36 @@ function ctd_get_default_languages() {
 			'slug'           => 'fr',
 			'flag'           => 'fr_FR.png',
 			'translation_en' => 'French',
+			'translations'   => array(
+				'en' => 'French',
+				'es' => 'Francés',
+				'de' => 'Französisch',
+				'it' => 'Francese',
+			),
 		),
 		'en' => array(
 			'name'           => __( 'Anglais', 'centre-telechargement' ),
 			'slug'           => 'en',
 			'flag'           => 'en_UK.png',
 			'translation_en' => 'English',
+			'translations'   => array(
+				'en' => 'English',
+				'es' => 'Inglés',
+				'de' => 'Englisch',
+				'it' => 'Inglese',
+			),
 		),
 		'es' => array(
 			'name'           => __( 'Espagnol', 'centre-telechargement' ),
 			'slug'           => 'es',
 			'flag'           => 'es_ES.png',
 			'translation_en' => 'Spanish',
+			'translations'   => array(
+				'en' => 'Spanish',
+				'es' => 'Español',
+				'de' => 'Spanisch',
+				'it' => 'Spagnolo',
+			),
 		),
 	);
 }
