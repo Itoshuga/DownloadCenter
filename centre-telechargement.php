@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Centre de Téléchargement
  * Description: Socle admin pour gérer des documents PDF catégorisés, publics ou protégés.
- * Version: 0.5.15
+ * Version: 0.5.16
  * Author: IMS ON LINE
  * Text Domain: centre-telechargement
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CTD_VERSION', '0.5.15' );
+define( 'CTD_VERSION', '0.5.16' );
 define( 'CTD_ANALYTICS_SCHEMA_VERSION', '1.1.0' );
 define( 'CTD_PLUGIN_FILE', __FILE__ );
 define( 'CTD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -24,6 +24,7 @@ define( 'CTD_LANGUAGE_TAXONOMY', 'download_language' );
 define( 'CTD_CATEGORY_RANGE_META', '_ctd_category_range_ids' );
 define( 'CTD_CATEGORY_LANGUAGE_META', '_ctd_category_language_ids' );
 define( 'CTD_CATEGORY_PROTECTED_HINT_META', '_ctd_category_protected_hint' );
+define( 'CTD_TERM_TRANSLATION_EN_META', '_ctd_term_translation_en' );
 define( 'CTD_LANGUAGE_FLAG_META', '_ctd_language_flag' );
 define( 'CTD_LANGUAGE_FLAG_ATTACHMENT_META', '_ctd_language_flag_attachment_id' );
 define( 'CTD_LANGUAGE_FLAGS_DIR', CTD_PLUGIN_DIR . 'assets/images/flags/' );
@@ -253,24 +254,58 @@ function ctd_category_has_protected_hint( $category ) {
 }
 
 /**
+ * @param WP_Term|int $term Term object or term ID.
+ * @param string      $language Language code.
+ * @param string      $taxonomy Optional taxonomy when passing an ID.
+ * @return string
+ */
+function ctd_get_translated_term_name( $term, $language = '', $taxonomy = '' ) {
+	if ( is_numeric( $term ) ) {
+		$term = get_term( absint( $term ), $taxonomy );
+	}
+
+	if ( ! ( $term instanceof WP_Term ) || is_wp_error( $term ) ) {
+		return '';
+	}
+
+	$language = function_exists( 'ctd_normalize_frontend_language' )
+		? ctd_normalize_frontend_language( $language )
+		: ( 0 === strpos( strtolower( (string) $language ), 'en' ) ? 'en' : 'fr' );
+
+	if ( 'en' === $language ) {
+		$translation = get_term_meta( $term->term_id, CTD_TERM_TRANSLATION_EN_META, true );
+		$translation = is_string( $translation ) ? trim( $translation ) : '';
+
+		if ( '' !== $translation ) {
+			return $translation;
+		}
+	}
+
+	return $term->name;
+}
+
+/**
  * @return array<string, array<string, string>>
  */
 function ctd_get_default_languages() {
 	return array(
 		'fr' => array(
-			'name' => __( 'Français', 'centre-telechargement' ),
-			'slug' => 'fr',
-			'flag' => 'fr_FR.png',
+			'name'           => __( 'Français', 'centre-telechargement' ),
+			'slug'           => 'fr',
+			'flag'           => 'fr_FR.png',
+			'translation_en' => 'French',
 		),
 		'en' => array(
-			'name' => __( 'Anglais', 'centre-telechargement' ),
-			'slug' => 'en',
-			'flag' => 'en_UK.png',
+			'name'           => __( 'Anglais', 'centre-telechargement' ),
+			'slug'           => 'en',
+			'flag'           => 'en_UK.png',
+			'translation_en' => 'English',
 		),
 		'es' => array(
-			'name' => __( 'Espagnol', 'centre-telechargement' ),
-			'slug' => 'es',
-			'flag' => 'es_ES.png',
+			'name'           => __( 'Espagnol', 'centre-telechargement' ),
+			'slug'           => 'es',
+			'flag'           => 'es_ES.png',
+			'translation_en' => 'Spanish',
 		),
 	);
 }

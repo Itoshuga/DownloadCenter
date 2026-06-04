@@ -16,9 +16,11 @@ add_action( 'admin_post_nopriv_ctd_document_file', 'ctd_handle_document_file_req
  */
 function ctd_render_documents_library_shortcode( $atts = array() ) {
 	$settings = ctd_get_frontend_settings();
-	$atts = shortcode_atts(
+	$language = ctd_get_current_frontend_language();
+	$strings  = ctd_get_frontend_i18n_strings( $language, $settings );
+	$atts     = shortcode_atts(
 		array(
-			'empty_message' => $settings['empty_message'],
+			'empty_message' => $strings['empty_message'],
 		),
 		$atts,
 		'documents_library'
@@ -33,28 +35,28 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 	ob_start();
 	?>
 	<div class="ctd-front-library" data-ctd-library data-ctd-filter-relationships="<?php echo esc_attr( $relationships ); ?>">
-		<?php ctd_render_frontend_login_prompt( $settings ); ?>
+		<?php ctd_render_frontend_login_prompt( $settings, $language ); ?>
 
 		<div class="ctd-front-filters" aria-label="<?php esc_attr_e( 'Filtres des documents', 'centre-telechargement' ); ?>">
 			<?php
 			ctd_render_frontend_filter_select(
 				'category',
-				__( 'Catégorie', 'centre-telechargement' ),
-				__( 'Toutes les catégories', 'centre-telechargement' ),
+				$strings['filter_category_label'],
+				$strings['filter_category_empty_label'],
 				$filters['categories']
 			);
 
 			ctd_render_frontend_filter_select(
 				'range',
-				__( 'Gamme', 'centre-telechargement' ),
-				__( 'Toutes les gammes', 'centre-telechargement' ),
+				$strings['filter_range_label'],
+				$strings['filter_range_empty_label'],
 				$filters['ranges']
 			);
 
 			ctd_render_frontend_filter_select(
 				'language',
-				__( 'Langue', 'centre-telechargement' ),
-				__( 'Toutes les langues', 'centre-telechargement' ),
+				$strings['filter_language_label'],
+				$strings['filter_language_empty_label'],
 				$filters['languages']
 			);
 			?>
@@ -89,17 +91,19 @@ function ctd_get_frontend_filter_relationships_json() {
 
 /**
  * @param array<string, string> $settings Frontend settings.
+ * @param string                $language Current language.
  * @return void
  */
-function ctd_render_frontend_login_prompt( $settings ) {
+function ctd_render_frontend_login_prompt( $settings, $language = '' ) {
 	if ( is_user_logged_in() ) {
 		return;
 	}
 
+	$strings     = ctd_get_frontend_i18n_strings( $language, $settings );
 	$modal_id    = 'ctd-front-login-modal-' . wp_rand( 1000, 9999 );
-	$notice_text = isset( $settings['login_notice_text'] ) ? $settings['login_notice_text'] : '';
-	$button_text = isset( $settings['login_button_text'] ) ? $settings['login_button_text'] : '';
-	$shortcode   = isset( $settings['password_request_shortcode'] ) ? trim( $settings['password_request_shortcode'] ) : '';
+	$notice_text = $strings['login_notice_text'];
+	$button_text = $strings['login_button_text'];
+	$shortcode   = trim( $strings['password_request_shortcode'] );
 	?>
 	<div class="ctd-front-login-prompt">
 		<p><?php echo esc_html( $notice_text ); ?></p>
@@ -127,7 +131,7 @@ function ctd_render_frontend_login_prompt( $settings ) {
 		<div class="ctd-front-modal-panel" role="document">
 			<div class="ctd-front-modal-header">
 				<h2 id="<?php echo esc_attr( $modal_id ); ?>-title">
-					<?php esc_html_e( 'Accès aux documents', 'centre-telechargement' ); ?>
+					<?php echo esc_html( $strings['login_modal_title'] ); ?>
 				</h2>
 				<button type="button" class="ctd-front-modal-close" aria-label="<?php esc_attr_e( 'Fermer', 'centre-telechargement' ); ?>" data-ctd-modal-close>
 					<i class="fa-solid fa-xmark" aria-hidden="true"></i>
@@ -136,10 +140,10 @@ function ctd_render_frontend_login_prompt( $settings ) {
 
 			<div class="ctd-front-modal-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Modes d\'accès', 'centre-telechargement' ); ?>">
 				<button type="button" class="ctd-front-modal-tab is-active" role="tab" aria-selected="true" data-ctd-tab-button="login">
-					<?php esc_html_e( 'Connexion', 'centre-telechargement' ); ?>
+					<?php echo esc_html( $strings['login_tab_label'] ); ?>
 				</button>
 				<button type="button" class="ctd-front-modal-tab" role="tab" aria-selected="false" data-ctd-tab-button="password">
-					<?php esc_html_e( 'Demande de mot de passe', 'centre-telechargement' ); ?>
+					<?php echo esc_html( $strings['password_tab_label'] ); ?>
 				</button>
 			</div>
 
@@ -155,7 +159,7 @@ function ctd_render_frontend_login_prompt( $settings ) {
 						<?php echo do_shortcode( $shortcode ); ?>
 					<?php else : ?>
 						<p class="ctd-front-modal-empty">
-							<?php esc_html_e( 'Ajoutez le shortcode du formulaire de contact dans les paramètres du Centre de Téléchargement.', 'centre-telechargement' ); ?>
+							<?php echo esc_html( $strings['password_shortcode_empty_message'] ); ?>
 						</p>
 					<?php endif; ?>
 				</div>
@@ -310,7 +314,7 @@ function ctd_get_document_frontend_terms( $post_id, $taxonomy ) {
 	foreach ( $terms as $term ) {
 		$items[] = array(
 			'id'   => $term->term_id,
-			'name' => $term->name,
+			'name' => ctd_get_translated_term_name( $term, ctd_get_current_frontend_language() ),
 			'slug' => $term->slug,
 		);
 	}
@@ -368,6 +372,7 @@ function ctd_get_frontend_library_filters( $documents ) {
  * @return array<int, array<string, string>>
  */
 function ctd_get_frontend_filter_terms( $taxonomy ) {
+	$language = ctd_get_current_frontend_language();
 	$terms = get_terms(
 		array(
 			'taxonomy'   => $taxonomy,
@@ -382,9 +387,9 @@ function ctd_get_frontend_filter_terms( $taxonomy ) {
 	}
 
 	return array_map(
-		static function ( $term ) use ( $taxonomy ) {
+		static function ( $term ) use ( $taxonomy, $language ) {
 			$item = array(
-				'name' => $term->name,
+				'name' => ctd_get_translated_term_name( $term, $language ),
 				'slug' => $term->slug,
 			);
 

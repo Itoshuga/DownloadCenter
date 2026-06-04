@@ -14,6 +14,18 @@ add_action( CTD_LANGUAGE_TAXONOMY . '_add_form_fields', 'ctd_render_language_add
 add_action( CTD_LANGUAGE_TAXONOMY . '_edit_form_fields', 'ctd_render_language_edit_fields' );
 add_action( 'created_' . CTD_LANGUAGE_TAXONOMY, 'ctd_save_language_term_meta' );
 add_action( 'edited_' . CTD_LANGUAGE_TAXONOMY, 'ctd_save_language_term_meta' );
+add_action( CTD_TAXONOMY . '_add_form_fields', 'ctd_render_term_translation_add_field', 30 );
+add_action( CTD_TAXONOMY . '_edit_form_fields', 'ctd_render_term_translation_edit_field', 30 );
+add_action( CTD_RANGE_TAXONOMY . '_add_form_fields', 'ctd_render_term_translation_add_field', 30 );
+add_action( CTD_RANGE_TAXONOMY . '_edit_form_fields', 'ctd_render_term_translation_edit_field', 30 );
+add_action( CTD_LANGUAGE_TAXONOMY . '_add_form_fields', 'ctd_render_term_translation_add_field', 30 );
+add_action( CTD_LANGUAGE_TAXONOMY . '_edit_form_fields', 'ctd_render_term_translation_edit_field', 30 );
+add_action( 'created_' . CTD_TAXONOMY, 'ctd_save_term_translation_meta' );
+add_action( 'edited_' . CTD_TAXONOMY, 'ctd_save_term_translation_meta' );
+add_action( 'created_' . CTD_RANGE_TAXONOMY, 'ctd_save_term_translation_meta' );
+add_action( 'edited_' . CTD_RANGE_TAXONOMY, 'ctd_save_term_translation_meta' );
+add_action( 'created_' . CTD_LANGUAGE_TAXONOMY, 'ctd_save_term_translation_meta' );
+add_action( 'edited_' . CTD_LANGUAGE_TAXONOMY, 'ctd_save_term_translation_meta' );
 add_action( 'save_post_' . CTD_POST_TYPE, 'ctd_sync_document_related_terms_with_categories', 30, 2 );
 add_filter( 'manage_edit-' . CTD_TAXONOMY . '_columns', 'ctd_filter_category_term_columns' );
 add_filter( 'manage_' . CTD_TAXONOMY . '_custom_column', 'ctd_render_category_term_column', 10, 3 );
@@ -25,6 +37,7 @@ function ctd_register_taxonomy() {
 	ctd_register_range_taxonomy();
 	ctd_register_language_taxonomy();
 	ctd_register_category_relationship_meta();
+	ctd_register_term_translation_meta();
 }
 
 function ctd_register_category_relationship_meta() {
@@ -53,6 +66,24 @@ function ctd_register_category_relationship_meta() {
 			'show_in_rest'      => false,
 		)
 	);
+}
+
+function ctd_register_term_translation_meta() {
+	foreach ( array( CTD_TAXONOMY, CTD_RANGE_TAXONOMY, CTD_LANGUAGE_TAXONOMY ) as $taxonomy ) {
+		register_term_meta(
+			$taxonomy,
+			CTD_TERM_TRANSLATION_EN_META,
+			array(
+				'type'              => 'string',
+				'single'            => true,
+				'sanitize_callback' => 'sanitize_text_field',
+				'auth_callback'     => static function () {
+					return current_user_can( 'manage_options' );
+				},
+				'show_in_rest'      => false,
+			)
+		);
+	}
 }
 
 function ctd_register_category_taxonomy() {
@@ -211,9 +242,84 @@ function ctd_seed_default_languages( $force = false ) {
 		) {
 			update_term_meta( $term_id, CTD_LANGUAGE_FLAG_META, $language['flag'] );
 		}
+
+		if (
+			$term_id
+			&& ! get_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META, true )
+			&& ! empty( $language['translation_en'] )
+		) {
+			update_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META, sanitize_text_field( $language['translation_en'] ) );
+		}
 	}
 
 	update_option( 'ctd_default_languages_seeded', CTD_VERSION );
+}
+
+function ctd_render_term_translation_add_field() {
+	?>
+	<div class="form-field term-ctd-translation-wrap">
+		<label for="ctd_term_translation_en" class="ctd-taxonomy-field-label"><?php esc_html_e( 'Traduction anglaise', 'centre-telechargement' ); ?></label>
+		<?php wp_nonce_field( 'ctd_save_term_translation', 'ctd_term_translation_nonce' ); ?>
+		<input type="text" id="ctd_term_translation_en" name="ctd_term_translation_en" value="" />
+		<p><?php esc_html_e( 'Nom affiché dans les filtres front lorsque la langue anglaise est active.', 'centre-telechargement' ); ?></p>
+	</div>
+	<?php
+}
+
+/**
+ * @param WP_Term $term Current term.
+ * @return void
+ */
+function ctd_render_term_translation_edit_field( $term ) {
+	$translation = get_term_meta( $term->term_id, CTD_TERM_TRANSLATION_EN_META, true );
+	?>
+	<tr class="form-field term-ctd-translation-wrap">
+		<th scope="row">
+			<label for="ctd_term_translation_en"><?php esc_html_e( 'Traduction anglaise', 'centre-telechargement' ); ?></label>
+		</th>
+		<td>
+			<?php wp_nonce_field( 'ctd_save_term_translation', 'ctd_term_translation_nonce' ); ?>
+			<input
+				type="text"
+				id="ctd_term_translation_en"
+				name="ctd_term_translation_en"
+				value="<?php echo esc_attr( is_string( $translation ) ? $translation : '' ); ?>"
+			/>
+			<p class="description"><?php esc_html_e( 'Nom affiché dans les filtres front lorsque la langue anglaise est active.', 'centre-telechargement' ); ?></p>
+		</td>
+	</tr>
+	<?php
+}
+
+/**
+ * @param int $term_id Term ID.
+ * @return void
+ */
+function ctd_save_term_translation_meta( $term_id ) {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	if ( ! isset( $_POST['ctd_term_translation_nonce'] ) ) {
+		return;
+	}
+
+	$nonce = sanitize_text_field( wp_unslash( $_POST['ctd_term_translation_nonce'] ) );
+
+	if ( ! wp_verify_nonce( $nonce, 'ctd_save_term_translation' ) ) {
+		return;
+	}
+
+	$translation = isset( $_POST['ctd_term_translation_en'] )
+		? sanitize_text_field( wp_unslash( $_POST['ctd_term_translation_en'] ) )
+		: '';
+
+	if ( '' === $translation ) {
+		delete_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META );
+		return;
+	}
+
+	update_term_meta( $term_id, CTD_TERM_TRANSLATION_EN_META, $translation );
 }
 
 function ctd_render_category_relationship_add_fields() {
