@@ -696,6 +696,7 @@ function ctd_get_frontend_settings_defaults() {
 		'filter_gap'             => '14px',
 		'document_min_width'     => '150px',
 		'document_gap'           => '26px',
+		'force_shortcode_css'    => '0',
 		'enabled_languages'      => ctd_get_default_frontend_language_codes(),
 		'empty_message'          => $fallback_strings['empty_message'],
 		'login_notice_text'      => $fallback_strings['login_notice_text'],
@@ -768,6 +769,7 @@ function ctd_sanitize_frontend_settings( $settings ) {
 		'filter_gap'             => ctd_sanitize_css_length_setting( $settings['filter_gap'] ?? '', $defaults['filter_gap'] ),
 		'document_min_width'     => ctd_sanitize_css_length_setting( $settings['document_min_width'] ?? '', $defaults['document_min_width'] ),
 		'document_gap'           => ctd_sanitize_css_length_setting( $settings['document_gap'] ?? '', $defaults['document_gap'] ),
+		'force_shortcode_css'    => ! empty( $settings['force_shortcode_css'] ) ? '1' : '0',
 		'enabled_languages'      => $enabled_languages,
 		'empty_message'          => ctd_sanitize_plain_text_setting( $settings['empty_message'] ?? '', $defaults['empty_message'] ),
 		'login_notice_text'      => ctd_sanitize_plain_text_setting( $settings['login_notice_text'] ?? '', $defaults['login_notice_text'] ),
@@ -1047,6 +1049,79 @@ function ctd_get_frontend_settings_css() {
 }
 
 /**
+ * @return string
+ */
+function ctd_get_frontend_forced_css() {
+	$settings = ctd_get_frontend_settings();
+
+	if ( '1' !== (string) ( $settings['force_shortcode_css'] ?? '0' ) ) {
+		return '';
+	}
+
+	$css_path = CTD_PLUGIN_DIR . 'assets/css/frontend.css';
+
+	if ( ! is_readable( $css_path ) ) {
+		return '';
+	}
+
+	$css = file_get_contents( $css_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+	if ( ! is_string( $css ) || '' === trim( $css ) ) {
+		return '';
+	}
+
+	$css = preg_replace( '/^\s*--ctd-[^;]+;\s*$/m', '', $css );
+
+	if ( ! is_string( $css ) ) {
+		return '';
+	}
+
+	return "/* Centre Telechargement - CSS shortcode force */\n" . ctd_add_important_to_shortcode_css( $css );
+}
+
+/**
+ * @param string $css CSS content.
+ * @return string
+ */
+function ctd_add_important_to_shortcode_css( $css ) {
+	$protected_blocks = array();
+	$css              = preg_replace_callback(
+		'/@keyframes\b[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/s',
+		static function ( $matches ) use ( &$protected_blocks ) {
+			$token                      = '/*CTD_PROTECTED_KEYFRAMES_' . count( $protected_blocks ) . '*/';
+			$protected_blocks[ $token ] = $matches[0];
+
+			return $token;
+		},
+		$css
+	);
+
+	if ( ! is_string( $css ) ) {
+		return '';
+	}
+
+	$css = preg_replace_callback(
+		'/([a-zA-Z][a-zA-Z0-9-]*)\s*:\s*([^;{}]+);/',
+		static function ( $matches ) {
+			$value = trim( $matches[2] );
+
+			if ( false !== stripos( $value, '!important' ) ) {
+				return $matches[0];
+			}
+
+			return $matches[1] . ': ' . $value . ' !important;';
+		},
+		$css
+	);
+
+	if ( ! is_string( $css ) ) {
+		return '';
+	}
+
+	return strtr( $css, $protected_blocks );
+}
+
+/**
  * @param string $hex Hex color.
  * @param float  $alpha Alpha value.
  * @return string
@@ -1273,6 +1348,24 @@ function ctd_render_settings_page() {
 
 				<section class="ctd-settings-panel">
 					<header class="ctd-settings-panel-header">
+						<h2><?php esc_html_e( 'Style du shortcode', 'centre-telechargement' ); ?></h2>
+						<p><?php esc_html_e( 'Activez cette option si le thème ou Elementorécrase le rendu de la bibliothÃ¨que front.', 'centre-telechargement' ); ?></p>
+					</header>
+
+					<div class="ctd-settings-fields ctd-settings-fields-single">
+						<?php
+						ctd_render_checkbox_setting_field(
+							'force_shortcode_css',
+							__( 'Forcer le CSS du shortcode', 'centre-telechargement' ),
+							$settings['force_shortcode_css'],
+							__( 'Ajoute !important aux styles front du shortcode, uniquement sur les classes du Centre de Téléchargement.', 'centre-telechargement' )
+						);
+						?>
+					</div>
+				</section>
+
+				<section class="ctd-settings-panel">
+					<header class="ctd-settings-panel-header">
 						<h2><?php esc_html_e( 'Disposition des filtres', 'centre-telechargement' ); ?></h2>
 						<p><?php esc_html_e( 'Utilise des valeurs CSS comme 1fr, 0.7fr, 180px ou minmax(240px, 1.5fr).', 'centre-telechargement' ); ?></p>
 					</header>
@@ -1443,6 +1536,33 @@ function ctd_render_text_setting_field( $key, $label, $value, $option_name = CTD
 			name="<?php echo esc_attr( $option_name . '[' . $key . ']' ); ?>"
 			value="<?php echo esc_attr( $value ); ?>"
 		/>
+	</label>
+	<?php
+}
+
+/**
+ * @param string $key Field key.
+ * @param string $label Field label.
+ * @param string $value Field value.
+ * @param string $description Field help text.
+ * @param string $option_name Option name.
+ * @return void
+ */
+function ctd_render_checkbox_setting_field( $key, $label, $value, $description = '', $option_name = CTD_FRONTEND_SETTINGS_OPTION ) {
+	?>
+	<label class="ctd-settings-checkbox-field">
+		<input
+			type="checkbox"
+			name="<?php echo esc_attr( $option_name . '[' . $key . ']' ); ?>"
+			value="1"
+			<?php checked( '1', (string) $value ); ?>
+		/>
+		<span>
+			<strong><?php echo esc_html( $label ); ?></strong>
+			<?php if ( $description ) : ?>
+				<small><?php echo esc_html( $description ); ?></small>
+			<?php endif; ?>
+		</span>
 	</label>
 	<?php
 }

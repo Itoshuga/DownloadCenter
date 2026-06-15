@@ -232,6 +232,12 @@ function ctd_enqueue_frontend_base_assets() {
 	);
 	wp_add_inline_style( 'ctd-frontend', ctd_get_frontend_settings_css() );
 
+	$forced_css = ctd_get_frontend_forced_css();
+
+	if ( $forced_css ) {
+		wp_add_inline_style( 'ctd-frontend', $forced_css );
+	}
+
 	wp_enqueue_script(
 		'ctd-frontend',
 		CTD_PLUGIN_URL . 'assets/js/frontend.js',
