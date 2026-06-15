@@ -696,6 +696,7 @@ function ctd_get_frontend_settings_defaults() {
 		'filter_gap'             => '14px',
 		'document_min_width'     => '150px',
 		'document_gap'           => '26px',
+		'documents_per_page'     => '20',
 		'force_shortcode_css'    => '0',
 		'enabled_languages'      => ctd_get_default_frontend_language_codes(),
 		'empty_message'          => $fallback_strings['empty_message'],
@@ -769,6 +770,7 @@ function ctd_sanitize_frontend_settings( $settings ) {
 		'filter_gap'             => ctd_sanitize_css_length_setting( $settings['filter_gap'] ?? '', $defaults['filter_gap'] ),
 		'document_min_width'     => ctd_sanitize_css_length_setting( $settings['document_min_width'] ?? '', $defaults['document_min_width'] ),
 		'document_gap'           => ctd_sanitize_css_length_setting( $settings['document_gap'] ?? '', $defaults['document_gap'] ),
+		'documents_per_page'     => ctd_sanitize_positive_integer_setting( $settings['documents_per_page'] ?? '', $defaults['documents_per_page'], 1, 999 ),
 		'force_shortcode_css'    => ! empty( $settings['force_shortcode_css'] ) ? '1' : '0',
 		'enabled_languages'      => $enabled_languages,
 		'empty_message'          => ctd_sanitize_plain_text_setting( $settings['empty_message'] ?? '', $defaults['empty_message'] ),
@@ -1018,6 +1020,26 @@ function ctd_sanitize_css_length_setting( $value, $fallback ) {
 	}
 
 	return $fallback;
+}
+
+/**
+ * @param mixed $value Candidate integer.
+ * @param mixed $fallback Fallback integer.
+ * @param int   $min Minimum accepted value.
+ * @param int   $max Maximum accepted value.
+ * @return string
+ */
+function ctd_sanitize_positive_integer_setting( $value, $fallback, $min = 1, $max = 999 ) {
+	$value    = absint( $value );
+	$fallback = absint( $fallback );
+	$min      = max( 1, absint( $min ) );
+	$max      = max( $min, absint( $max ) );
+
+	if ( $value < $min ) {
+		$value = max( $min, $fallback );
+	}
+
+	return (string) min( $value, $max );
 }
 
 /**
@@ -1390,6 +1412,7 @@ function ctd_render_settings_page() {
 						<?php
 						ctd_render_text_setting_field( 'document_min_width', __( 'Largeur minimale d’une vignette', 'centre-telechargement' ), $settings['document_min_width'] );
 						ctd_render_text_setting_field( 'document_gap', __( 'Espace entre les vignettes', 'centre-telechargement' ), $settings['document_gap'] );
+						ctd_render_text_setting_field( 'documents_per_page', __( 'Documents par page', 'centre-telechargement' ), $settings['documents_per_page'], CTD_FRONTEND_SETTINGS_OPTION, 'number' );
 						?>
 					</div>
 				</section>
@@ -1535,6 +1558,7 @@ function ctd_render_text_setting_field( $key, $label, $value, $option_name = CTD
 			type="<?php echo esc_attr( $type ); ?>"
 			name="<?php echo esc_attr( $option_name . '[' . $key . ']' ); ?>"
 			value="<?php echo esc_attr( $value ); ?>"
+			<?php echo 'number' === $type ? 'min="1" step="1"' : ''; ?>
 		/>
 	</label>
 	<?php

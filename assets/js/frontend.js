@@ -13,29 +13,165 @@
 		return splitTerms(card.getAttribute('data-' + key)).indexOf(value) !== -1;
 	}
 
-	function refreshLibrary(library) {
+	function getPerPage(library) {
+		var perPage = parseInt(library.getAttribute('data-ctd-per-page'), 10);
+
+		return perPage > 0 ? perPage : 20;
+	}
+
+	function getCurrentPage(library) {
+		var currentPage = parseInt(library.getAttribute('data-ctd-current-page'), 10);
+
+		return currentPage > 0 ? currentPage : 1;
+	}
+
+	function setCurrentPage(library, page) {
+		library.setAttribute('data-ctd-current-page', String(Math.max(1, page || 1)));
+	}
+
+	function cardMatchesFilters(card, category, range, language) {
+		return hasTerm(card, 'category', category)
+			&& hasTerm(card, 'range', range)
+			&& hasTerm(card, 'language', language);
+	}
+
+	function getPaginationItems(currentPage, totalPages) {
+		var pages = [];
+		var page;
+
+		if (totalPages <= 7) {
+			for (page = 1; page <= totalPages; page += 1) {
+				pages.push(page);
+			}
+
+			return pages;
+		}
+
+		pages.push(1);
+
+		if (currentPage > 3) {
+			pages.push('start-ellipsis');
+		}
+
+		for (page = Math.max(2, currentPage - 1); page <= Math.min(totalPages - 1, currentPage + 1); page += 1) {
+			pages.push(page);
+		}
+
+		if (currentPage < totalPages - 2) {
+			pages.push('end-ellipsis');
+		}
+
+		pages.push(totalPages);
+
+		return pages;
+	}
+
+	function renderPagination(library, visibleCount, totalPages, currentPage) {
+		var pagination = library.querySelector('[data-ctd-pagination]');
+		var pagesContainer;
+		var previousButton;
+		var nextButton;
+		var fragment;
+
+		if (!pagination) {
+			return;
+		}
+
+		pagesContainer = pagination.querySelector('[data-ctd-pagination-pages]');
+		previousButton = pagination.querySelector('[data-ctd-pagination-prev]');
+		nextButton = pagination.querySelector('[data-ctd-pagination-next]');
+		pagination.hidden = visibleCount === 0 || totalPages <= 1;
+
+		if (previousButton) {
+			previousButton.disabled = currentPage <= 1;
+		}
+
+		if (nextButton) {
+			nextButton.disabled = currentPage >= totalPages;
+		}
+
+		if (!pagesContainer) {
+			return;
+		}
+
+		pagesContainer.innerHTML = '';
+		fragment = document.createDocumentFragment();
+
+		getPaginationItems(currentPage, totalPages).forEach(function(item) {
+			var element;
+
+			if (typeof item === 'string') {
+				element = document.createElement('span');
+				element.className = 'ctd-front-pagination-ellipsis';
+				element.textContent = '...';
+				fragment.appendChild(element);
+				return;
+			}
+
+			element = document.createElement('button');
+			element.type = 'button';
+			element.className = 'ctd-front-pagination-page';
+			element.setAttribute('data-ctd-pagination-page', String(item));
+			element.setAttribute('aria-label', 'Page ' + item);
+			element.textContent = String(item);
+
+			if (item === currentPage) {
+				element.classList.add('is-active');
+				element.setAttribute('aria-current', 'page');
+			}
+
+			fragment.appendChild(element);
+		});
+
+		pagesContainer.appendChild(fragment);
+	}
+
+	function refreshLibrary(library, resetPage) {
 		var category = getFilterValue(library, 'category');
 		var range = getFilterValue(library, 'range');
 		var language = getFilterValue(library, 'language');
 		var cards = library.querySelectorAll('[data-ctd-document]');
 		var empty = library.querySelector('[data-ctd-empty]');
-		var visibleCount = 0;
+		var matchingCards = [];
+		var perPage = getPerPage(library);
+		var currentPage;
+		var totalPages;
+		var startIndex;
+		var endIndex;
+
+		if (resetPage) {
+			setCurrentPage(library, 1);
+		}
 
 		Array.prototype.forEach.call(cards, function(card) {
-			var isVisible = hasTerm(card, 'category', category)
-				&& hasTerm(card, 'range', range)
-				&& hasTerm(card, 'language', language);
+			var isMatching = cardMatchesFilters(card, category, range, language);
 
-			card.hidden = !isVisible;
+			if (isMatching) {
+				matchingCards.push(card);
+			}
+		});
 
-			if (isVisible) {
-				visibleCount += 1;
+		totalPages = Math.max(1, Math.ceil(matchingCards.length / perPage));
+		currentPage = Math.min(getCurrentPage(library), totalPages);
+		setCurrentPage(library, currentPage);
+		startIndex = (currentPage - 1) * perPage;
+		endIndex = startIndex + perPage;
+
+		Array.prototype.forEach.call(cards, function(card) {
+			card.hidden = true;
+		});
+
+		matchingCards.forEach(function(card, index) {
+			if (index >= startIndex && index < endIndex) {
+				card.hidden = false;
 			}
 		});
 
 		if (empty) {
-			empty.classList.toggle('is-visible', visibleCount === 0);
+			empty.classList.toggle('is-visible', matchingCards.length === 0);
 		}
+
+		renderPagination(library, matchingCards.length, totalPages, currentPage);
 	}
 
 	function getFilterValue(library, key) {
@@ -181,7 +317,7 @@
 		}
 
 		closeFilter(control);
-		refreshLibrary(library);
+		refreshLibrary(library, true);
 	}
 
 	function initFilterControl(library, control) {
@@ -202,13 +338,47 @@
 		});
 	}
 
+	function initPagination(library) {
+		var pagination = library.querySelector('[data-ctd-pagination]');
+
+		if (!pagination) {
+			return;
+		}
+
+		pagination.addEventListener('click', function(event) {
+			var button = event.target.closest('[data-ctd-pagination-page], [data-ctd-pagination-prev], [data-ctd-pagination-next]');
+			var currentPage;
+			var targetPage;
+
+			if (!button || button.disabled) {
+				return;
+			}
+
+			event.preventDefault();
+			currentPage = getCurrentPage(library);
+
+			if (button.hasAttribute('data-ctd-pagination-prev')) {
+				targetPage = currentPage - 1;
+			} else if (button.hasAttribute('data-ctd-pagination-next')) {
+				targetPage = currentPage + 1;
+			} else {
+				targetPage = parseInt(button.getAttribute('data-ctd-pagination-page'), 10);
+			}
+
+			setCurrentPage(library, targetPage);
+			refreshLibrary(library, false);
+		});
+	}
+
 	function initLibrary(library) {
 		Array.prototype.forEach.call(library.querySelectorAll('[data-ctd-filter-control]'), function(control) {
 			initFilterControl(library, control);
 		});
 
+		initPagination(library);
+		setCurrentPage(library, 1);
 		refreshRelatedFilterOptions(library);
-		refreshLibrary(library);
+		refreshLibrary(library, false);
 	}
 
 	function getModal(id) {

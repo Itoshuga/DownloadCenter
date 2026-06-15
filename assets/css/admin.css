@@ -1813,6 +1813,7 @@ body.download_document_page_ctd-settings,
 
 .ctd-settings-field input[type="text"],
 .ctd-settings-field input[type="email"],
+.ctd-settings-field input[type="number"],
 .ctd-settings-field select {
 	border-color: #c8d2df;
 	border-radius: 7px;

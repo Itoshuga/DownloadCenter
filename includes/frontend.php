@@ -29,12 +29,13 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 	$documents = ctd_get_frontend_library_documents();
 	$filters   = ctd_get_frontend_library_filters( $documents );
 	$relationships = ctd_get_frontend_filter_relationships_json();
+	$per_page = ctd_get_frontend_documents_per_page( $settings );
 
 	ctd_enqueue_frontend_assets();
 
 	ob_start();
 	?>
-	<div class="ctd-front-library" data-ctd-library data-ctd-filter-relationships="<?php echo esc_attr( $relationships ); ?>">
+	<div class="ctd-front-library" data-ctd-library data-ctd-filter-relationships="<?php echo esc_attr( $relationships ); ?>" data-ctd-per-page="<?php echo esc_attr( $per_page ); ?>">
 		<?php ctd_render_frontend_login_prompt( $settings, $language ); ?>
 
 		<div class="ctd-front-filters" aria-label="<?php esc_attr_e( 'Filtres des documents', 'centre-telechargement' ); ?>">
@@ -71,10 +72,30 @@ function ctd_render_documents_library_shortcode( $atts = array() ) {
 		<p class="ctd-front-empty<?php echo empty( $documents ) ? ' is-visible' : ''; ?>" data-ctd-empty>
 			<?php echo esc_html( $atts['empty_message'] ); ?>
 		</p>
+
+		<nav class="ctd-front-pagination" data-ctd-pagination hidden aria-label="<?php esc_attr_e( 'Pagination des documents', 'centre-telechargement' ); ?>">
+			<button type="button" class="ctd-front-pagination-button" data-ctd-pagination-prev aria-label="<?php esc_attr_e( 'Page prÃ©cÃ©dente', 'centre-telechargement' ); ?>">
+				<i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+			</button>
+			<div class="ctd-front-pagination-pages" data-ctd-pagination-pages></div>
+			<button type="button" class="ctd-front-pagination-button" data-ctd-pagination-next aria-label="<?php esc_attr_e( 'Page suivante', 'centre-telechargement' ); ?>">
+				<i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+			</button>
+		</nav>
 	</div>
 	<?php
 
 	return ob_get_clean();
+}
+
+/**
+ * @param array<string, mixed> $settings Frontend settings.
+ * @return int
+ */
+function ctd_get_frontend_documents_per_page( $settings ) {
+	$per_page = isset( $settings['documents_per_page'] ) ? absint( $settings['documents_per_page'] ) : 20;
+
+	return $per_page > 0 ? $per_page : 20;
 }
 
 /**
