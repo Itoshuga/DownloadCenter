@@ -317,14 +317,25 @@ function ctd_get_frontend_library_documents() {
 }
 
 /**
- * Logged-in users can see every document card, but opening/downloading still
- * depends on ctd_user_can_access_document(). Anonymous visitors see no cards.
+ * Anonymous visitors can see public document cards. Logged-in users can see
+ * every document card, but opening/downloading still depends on
+ * ctd_user_can_access_document().
  *
  * @param int $post_id Document post ID.
  * @return bool
  */
 function ctd_user_can_see_document_card( $post_id ) {
-	return absint( $post_id ) && is_user_logged_in();
+	$post_id = absint( $post_id );
+
+	if ( ! $post_id ) {
+		return false;
+	}
+
+	if ( 'public' === ctd_get_document_status( $post_id ) ) {
+		return true;
+	}
+
+	return is_user_logged_in();
 }
 
 /**
